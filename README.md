@@ -8,7 +8,7 @@
 | **Experiments** | MLflow 实验追踪：记录每次训练的参数/指标/模型，以及 LLM/Agent 的 Trace | 阶段 2 |
 | **Models** | Unity Catalog 模型注册表：模型版本、别名（champion/challenger）、权限、血缘 | 阶段 3 |
 | **Serving** | 把模型/LLM 部署成 REST 接口（Model Serving Endpoint），也包含官方托管的基础大模型 | 阶段 4 |
-| **AI Gateway** | 给 Serving 端点加“网关治理”：限流、用量追踪、请求日志（推理表）、安全护栏、回退 | 阶段 5 |
+| **AI Gateway**（2026-09 起更名 **Unity Gateway**） | 模型/端点的统一网关：基础模型入口、限流、用量追踪、请求日志（推理表）、安全护栏、回退 | 阶段 5 |
 | **Features** | 特征工程 / 特征表：把特征集中管理、复用，训练与推理自动查找特征 | 阶段 6 |
 | **Agents** | 构建 AI Agent：Agent Bricks（低代码）+ Agent Framework（代码）+ 评估 + 部署 | 阶段 7 |
 
@@ -112,7 +112,7 @@ databricks-aiml-lab/
 ## 如何开始
 
 1. 读 [docs/00-environment-setup.md](docs/00-environment-setup.md)，把整个 `databricks-aiml-lab` 文件夹导入 Databricks（推荐 Git folder）。
-2. 修改 `notebooks/00_config.py` 里的 `CATALOG` / `SCHEMA` / `LLM_ENDPOINT`。
+2. 修改 `notebooks/00_config.py` 里的 `CATALOG` / `SCHEMA` / `LLM_MODE` / `LLM_MODEL_GATEWAY`。
 3. 运行 `notebooks/00_setup_data.py` 生成数据。
 4. 按阶段顺序阅读 `docs/0X-*.md`，每个文档都会告诉你：**先在 UI 里看什么 → 再跑哪个 notebook → 做哪些练习 → 如何自检**。
 
@@ -142,4 +142,4 @@ databricks-aiml-lab/
 
 - 编写时参考 Databricks 2025–2026 年的产品形态：MLflow 3、Unity Catalog 模型注册、Mosaic AI Agent Framework、Agent Bricks、AI Gateway。
 - Databricks UI 更新很快，按钮名称可能与文档略有不同；**以功能含义为准**，遇到对不上的情况看 [appendix-faq.md](docs/appendix-faq.md)。
-- 基础大模型端点名称（如 `databricks-meta-llama-3-3-70b-instruct`）因区域和时间而异，请在 **Serving** 页面确认后改 `00_config.py`。
+- **2026-09 起基础模型迁移到 Unity Gateway**（原 AI Gateway 更名）：模型注册在 `system.ai` 下（如 `system.ai.claude-sonnet-4-5`），不再出现在 Serving 页面。代码通过 `LLM_MODE` 同时支持新方式（`gateway`）和旧版 `databricks-*` 端点（`legacy`），详见 [docs/00](docs/00-environment-setup.md)。可用模型因区域而异，请在 **Catalog → system → ai** 确认。

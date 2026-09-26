@@ -172,6 +172,12 @@ mlflow.genai.evaluate(data=eval_data, predict_fn=predict_fn, scorers=[
 3. **register_model**：注册到 UC，`battery_service_agent`。
 4. **agents.deploy**：创建端点 + 推理表 + Trace 监控 + **Review App**。
 
+> ⚠️ **Unity Gateway 与部署方式（2026-09 更新）**
+> - `LLM_MODE = "gateway"` 时，LLM 是 `system.ai.*` 模型而不是 serving 端点，所以 `resources` 中不再声明它（`07b` 已自动处理）。部署到 Model Serving 后，若 Agent 调用 LLM 报 401/403，说明自动鉴权透传的凭证无权访问 Unity Gateway：
+>   1. 最简单：改 `LLM_MODE = "legacy"` 使用旧版 `databricks-*` 端点，重跑 `07b` 的 ①④⑥⑦；
+>   2. 官方新推荐：把 Agent 部署到 **Databricks Apps**（文档 “Author an agent and deploy it on Databricks Apps”），Apps 支持更完整的鉴权范围（包括 `ai-gateway` 用户 API scope）。Model Serving 部署方式仍受支持，本项目为了与前面阶段衔接继续使用它。
+> - 本地测试与评估（`07b` 的 ②③）在两种模式下都能正常运行。
+
 部署完成后：
 - **Serving** 页面出现 `agents_<catalog>-ev_battery_lab-battery_service_agent` 端点；
 - 打开 **Review App** 链接，像用 ChatGPT 一样对话，还可以对回答 👍/👎、写评语 —— 这些反馈会进入 MLflow，可转成评估集；

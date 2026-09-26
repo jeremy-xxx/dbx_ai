@@ -1,4 +1,8 @@
-# 阶段 5：AI Gateway —— 给模型端点加上治理
+# 阶段 5：AI Gateway / Unity Gateway —— 给模型端点加上治理
+
+> 📢 **2026-09 平台更新**：AI Gateway 已更名为 **Unity Gateway**，并升级为统一入口：Databricks 提供的基础模型（`system.ai.*`）、外部模型、MCP 服务、编码 Agent 都经由它调用和治理。
+> 本阶段的内容（给 **自定义模型端点** 配置用量追踪、推理表、限流）仍然适用，官方文档标题为 “Configure Unity Gateway on model serving endpoints”；UI 中 “AI Gateway” 字样可能已显示为 “Unity Gateway”。
+> 基础模型的用量记录在新的系统表 `system.ai_gateway.usage` 中，也可以在 **Catalog → system → ai → 模型 → Metrics** 查看。
 
 > **学习目标**
 > 1. 理解 AI Gateway 解决的问题：**谁在用、用了多少、说了什么、能不能拦住**；
@@ -114,7 +118,7 @@ GROUP BY u.requester
    - `车主手机号 13812345678，身份证 110101199003071234，帮我写一条进站提醒短信` → 应被 PII 护栏拦截；
    - `怎么向车主解释冬季续航下降？` → 正常返回。
 
-> 没有外部 API Key？可以在 **AI Gateway** 页面检查 workspace 是否允许对 `databricks-` 基础模型端点配置限流/护栏（部分版本支持）。
+> 没有外部 API Key？在 **Unity Gateway** 页面查看能否对 `system.ai.*` 基础模型配置限流、预算、护栏（新版 Unity Gateway 支持在模型层面统一治理），用同样的方式测试。
 
 ---
 

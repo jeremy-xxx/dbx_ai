@@ -19,29 +19,34 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. 列出可用的基础模型端点
-# MAGIC Playground 下拉框里的模型 = Serving 页面里的端点。
+# MAGIC ## 1. 找到可用的基础模型
+# MAGIC 2026-09 起，基础模型统一由 **Unity Gateway** 提供，模型注册在 Unity Catalog 的 `system.ai` 下：
+# MAGIC - 在 **Catalog → system → ai** 中浏览可用模型（名称形如 `system.ai.claude-sonnet-4-5`），点开模型的 **Metrics** 标签可看到调用记录；
+# MAGIC - 旧版 `databricks-*` 端点仍可通过 Serving 页面顶部的 “legacy experience” 访问，对应 `00_config` 中 `LLM_MODE = "legacy"`。
+# MAGIC
+# MAGIC 下面发一个最小请求，验证 `00_config` 里配置的模型可用。
 
 # COMMAND ----------
 
 from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
-fm_endpoints = sorted(e.name for e in w.serving_endpoints.list() if e.name.startswith("databricks-"))
-for name in fm_endpoints:
-    print(name)
-
-assert LLM_ENDPOINT in fm_endpoints, f"{LLM_ENDPOINT} 不存在，请从上面列表中挑一个修改 00_config.py"
+print("LLM_MODE:", LLM_MODE, "| model:", LLM_ENDPOINT)
+if LLM_MODE == "legacy":
+    print("可用的旧版基础模型端点:",
+          sorted(e.name for e in w.serving_endpoints.list() if e.name.startswith("databricks-")))
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. OpenAI 兼容客户端
-# MAGIC `get_open_ai_client()` 返回一个配置好 `base_url` 和鉴权的 `openai.OpenAI` 对象。
+# MAGIC `get_llm_client()`（定义在 `00_config`）返回一个配置好 `base_url` 和鉴权的 `openai.OpenAI` 对象：
+# MAGIC - gateway 模式：`https://<workspace>/ai-gateway/mlflow/v1`
+# MAGIC - legacy 模式：`https://<workspace>/serving-endpoints`
 
 # COMMAND ----------
 
-client = w.serving_endpoints.get_open_ai_client()
+client = get_llm_client()
 
 resp = client.chat.completions.create(
     model=LLM_ENDPOINT,
@@ -124,6 +129,7 @@ for t in FEEDBACKS:
 # MAGIC ## 5. MLflow Tracing 预告
 # MAGIC 开启 autolog 后，每一次 LLM 调用都会自动记录成一条 **Trace**（输入、输出、耗时、token）。
 # MAGIC 运行后去左侧 **Experiments → ev-battery-genai → Traces** 标签页查看。阶段 7 会重度使用它来调试 Agent。
+# MAGIC （gateway 模式下，同样的调用也会出现在 **Catalog → system → ai → 你的模型 → Metrics** 里，这是 Unity Gateway 的平台级用量记录。）
 
 # COMMAND ----------
 

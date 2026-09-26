@@ -18,10 +18,10 @@
 | 类型 | 服务对象 | 例子 | 计费 |
 |---|---|---|---|
 | **Custom Model Serving** | 你在 UC 注册的 MLflow 模型（sklearn、pyfunc、Agent…） | 本阶段的 `battery_risk_model` | 按 CPU/GPU 算力时长 |
-| **Foundation Model APIs** | Databricks 托管的开源/商业大模型 | `databricks-meta-llama-3-3-70b-instruct` | Pay-per-token 或 Provisioned Throughput |
+| **基础模型（Foundation Models）** | Databricks 提供的开源/商业大模型 | `system.ai.claude-sonnet-4-5`（旧版名 `databricks-*`） | Pay-per-token 或预留容量。**2026-09 起由 Unity Gateway 管理，不再显示在 Serving 页面** |
 | **External Models** | 代理到外部厂商（OpenAI、Anthropic、Bedrock、Vertex…） | 阶段 5 选做 | 外部厂商计费 |
 
-三者**统一使用同一套 REST 接口与 AI Gateway 治理**，这是 Databricks Serving 最大的价值。
+三者**统一被 Unity Gateway（原 AI Gateway）治理**。2026-09 起 Serving 页面主要承载 **你自己部署的模型**（本阶段的风险模型、阶段 7 的 Agent），基础模型的入口移到了 Unity Gateway。
 
 ```
 车联网平台 ──HTTPS──► https://<workspace>/serving-endpoints/<endpoint>/invocations

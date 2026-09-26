@@ -12,11 +12,11 @@
 
 ## 1.1 概念：Playground 背后是什么？
 
-Playground 本质上是一个 **聊天 UI**，它调用的是 **Serving** 页面里的 **模型服务端点**。能选的模型分三类：
+Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上的模型服务。能选的模型分三类：
 
 | 类别 | 例子 | 计费 | 在哪里看到 |
 |---|---|---|---|
-| **Foundation Model APIs（按 token）** | `databricks-meta-llama-3-3-70b-instruct`、`databricks-claude-*`、`databricks-gpt-oss-*` | 按输入/输出 token | Serving 页面，名称以 `databricks-` 开头 |
+| **Databricks 提供的基础模型（按 token）** | `system.ai.claude-sonnet-4-5`、`system.ai.gpt-5-2` 等（旧版名称 `databricks-*`） | 按输入/输出 token | **Catalog → system → ai**（2026-09 起由 Unity Gateway 提供，不再列在 Serving 页面） |
 | **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
 | **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
 
@@ -28,7 +28,7 @@ Playground 本质上是一个 **聊天 UI**，它调用的是 **Serving** 页面
 
 ### 练习 1：第一次对话
 1. 左侧 **AI/ML → Playground**。
-2. 左上角模型下拉框选择一个 `databricks-` 开头的 Chat 模型（如 Llama 3.3 70B）。
+2. 左上角模型下拉框选择一个 Chat 模型（如 Claude Sonnet、GPT、Llama 等，具体列表因区域而异）。
 3. 输入：`用通俗的语言解释什么是动力电池的 SOH（健康度），以及 LFP 和 NMC 电池在寿命上的区别。`
 4. 观察回答下方显示的 **token 数与延迟**。
 
@@ -90,8 +90,8 @@ Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Searc
 
 | 小节 | 你会学到 |
 |---|---|
-| 1. 列出可用基础模型端点 | `WorkspaceClient().serving_endpoints.list()` |
-| 2. OpenAI 兼容客户端 | `w.serving_endpoints.get_open_ai_client()`，无需手动管 token |
+| 1. 确认可用模型 | Catalog 中的 `system.ai.*`（gateway 模式）或旧版 `databricks-*` 端点 |
+| 2. OpenAI 兼容客户端 | `get_llm_client()`（定义在 `00_config`），自动处理地址与鉴权 |
 | 3. System prompt + temperature 实验 | 与 Playground 练习 2、3 对应 |
 | 4. 结构化 JSON 输出：车主反馈分类 | `response_format` 与“解析失败兜底” |
 | 5. MLflow Tracing 预告 | `mlflow.openai.autolog()`，每次调用自动记录到 **Experiments** |
@@ -100,26 +100,30 @@ Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Searc
 ### 核心代码解读
 
 ```python
-from databricks.sdk import WorkspaceClient
-w = WorkspaceClient()                              # 在 notebook 里自动鉴权
-client = w.serving_endpoints.get_open_ai_client()  # 返回标准 openai.OpenAI 对象
+# Unity Gateway 方式（00_config 里 get_llm_client() 的实现）
+from openai import OpenAI
+w = WorkspaceClient()                                             # 在 notebook 里自动鉴权
+token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
+client = OpenAI(api_key=token, base_url=f"{w.config.host}/ai-gateway/mlflow/v1")
 
 resp = client.chat.completions.create(
-    model=LLM_ENDPOINT,                            # ← 就是 Serving 端点名
+    model="system.ai.claude-sonnet-4-5",          # ← UC 中的模型全名
     messages=[{"role": "system", "content": "..."},
               {"role": "user", "content": "..."}],
     temperature=0.2,
 )
 ```
 
-- `base_url` 实际是 `https://<workspace>/serving-endpoints`，所以 **任何支持 OpenAI SDK 的框架**（LangChain、LlamaIndex、DSPy…）都能直接接 Databricks 模型。
+- 这是 **统一的 OpenAI 兼容接口**：换成 GPT、Gemini 等其他厂商的模型只需改 `model`，代码不变。所以 **任何支持 OpenAI SDK 的框架**（LangChain、LlamaIndex、DSPy…）都能直接接 Databricks 模型。
+- 旧版方式：`w.serving_endpoints.get_open_ai_client()`，`base_url` 为 `https://<workspace>/serving-endpoints`，`model` 填 `databricks-*` 端点名。
 
 ```sql
 SELECT vehicle_id,
-       ai_query('databricks-meta-llama-3-3-70b-instruct',
+       ai_query('system.ai.claude-sonnet-4-5',
                 concat('用一句话点评这块电池的状态：', to_json(struct(*)))) AS comment
 FROM vehicles LIMIT 5
 ```
+> `ai_query` 调用 Unity Gateway 模型时，用量记录在系统表 `system.ai_gateway.usage` 中；限流、护栏等其他网关功能不作用于 `ai_query` 批处理。
 
 - `ai_query` 让分析师在 SQL 里批量调用 LLM，阶段 8 会用它批量生成车主进站通知。
 
@@ -136,7 +140,9 @@ FROM vehicles LIMIT 5
 
 | 现象 | 原因 / 解决 |
 |---|---|
-| 模型下拉框里没有 `databricks-` 模型 | 所在区域未开通 Foundation Model APIs，或管理员禁用了；联系管理员或换区域 |
+| Serving 页面找不到 `databricks-` 模型 | 正常：2026-09 起基础模型迁移到 Unity Gateway，去 **Catalog → system → ai** 查看 |
+| 调用报 `model not found` / 404 | `LLM_MODEL_GATEWAY` 名称写错或该区域没有此模型；在 `system.ai` 里挑一个存在的；或改 `LLM_MODE = "legacy"` |
+| 调用报 403 | 需要 workspace 的 Unity Gateway 查询权限（Workspace access 权限），联系管理员 |
 | `ai_query` 报错不支持 | 需要 Serverless / SQL Warehouse / DBR 15.4+ |
 | JSON 偶尔解析失败 | 降低 temperature；使用 `response_format`；代码中加 try/except 兜底 |
 | 模型对“过热”判断不够谨慎 | 在 System Prompt 中明确安全规则——这正是阶段 7 要把规程交给 Agent 的原因 |

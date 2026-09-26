@@ -35,6 +35,7 @@ import yaml
 
 agent_config = {
     "llm_endpoint": LLM_ENDPOINT,
+    "llm_mode": LLM_MODE,
     "risk_endpoint": RISK_ENDPOINT,
     "fn_profile": FN_PROFILE,
     "fn_features": FN_FEATURES,
@@ -162,8 +163,11 @@ display(results.metrics)
 
 from mlflow.models.resources import DatabricksFunction, DatabricksServingEndpoint, DatabricksTable
 
+# legacy 模式的 LLM 是 serving 端点，需要声明；gateway 模式的 system.ai.* 模型不是 serving 端点，不能用 DatabricksServingEndpoint 声明
+llm_resources = [DatabricksServingEndpoint(endpoint_name=LLM_ENDPOINT)] if LLM_MODE == "legacy" else []
+
 resources = [
-    DatabricksServingEndpoint(endpoint_name=LLM_ENDPOINT),
+    *llm_resources,
     DatabricksServingEndpoint(endpoint_name=RISK_ENDPOINT),
     *[DatabricksFunction(function_name=fn) for fn in [FN_PROFILE, FN_FEATURES, FN_ACTIONS, FN_POLICY]],
     *[DatabricksTable(table_name=t) for t in [VEHICLES_TABLE, FEATURE_TABLE, ACTIONS_TABLE, POLICY_TABLE]],
@@ -182,6 +186,7 @@ with mlflow.start_run(run_name="battery_service_agent"):
             "mlflow[databricks]>=3.1",
             "databricks-sdk",
             "openai",
+            "pyyaml",
             "unitycatalog-ai[databricks]",
         ],
     )
@@ -218,6 +223,12 @@ print(f"✅ {AGENT_MODEL_NAME} Version {mv.version}")
 # MAGIC - 创建 **Review App**（给售后专家试用、打分、反馈的网页）。
 # MAGIC
 # MAGIC 需要约 15 分钟。
+# MAGIC
+# MAGIC ⚠️ **关于 Unity Gateway（2026-09 的平台变化）**：本地测试（② ③）两种模式都能用。
+# MAGIC 部署到 Model Serving 后，Agent 用自动鉴权透传的短期凭证访问资源；该凭证能否调用 Unity Gateway 的 `system.ai.*` 模型取决于你的 workspace 设置。
+# MAGIC 如果部署后调用报 401/403：
+# MAGIC 1. 最简单：`00_config` 改 `LLM_MODE = "legacy"`，重新运行 ① ④ ⑥ ⑦；
+# MAGIC 2. 或按官方推荐把 Agent 部署到 **Databricks Apps**（文档 7.7 有说明）。
 
 # COMMAND ----------
 

@@ -31,6 +31,7 @@ mlflow.openai.autolog()  # 每次 LLM 调用自动生成 Trace span
 # ---------------------------------------------------------------------------
 config = ModelConfig(development_config="agent_config.yaml")
 LLM_ENDPOINT = config.get("llm_endpoint")
+LLM_MODE = config.get("llm_mode")  # "gateway"（Unity Gateway, system.ai.*）或 "legacy"（databricks-* 端点）
 RISK_ENDPOINT = config.get("risk_endpoint")
 FN_PROFILE = config.get("fn_profile")
 FN_FEATURES = config.get("fn_features")
@@ -126,8 +127,15 @@ def risk_level(p: float) -> str:
 class BatteryServiceAgent(ResponsesAgent):
     def __init__(self):
         self.w = WorkspaceClient()
-        self.llm = self.w.serving_endpoints.get_open_ai_client()
         self.uc = DatabricksFunctionClient()
+
+    def _llm(self):
+        """每次调用时创建客户端：部署后凭证会轮换，缓存的 token 可能过期。"""
+        if LLM_MODE == "legacy":
+            return self.w.serving_endpoints.get_open_ai_client()
+        from openai import OpenAI
+        token = self.w.config.authenticate()["Authorization"].split(" ", 1)[1]
+        return OpenAI(api_key=token, base_url=f"{self.w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
 
     # ------------------------------ 工具实现 ------------------------------
     def _uc(self, fn: str, params: dict[str, Any]) -> str | None:
@@ -175,8 +183,9 @@ class BatteryServiceAgent(ResponsesAgent):
     def predict(self, request: ResponsesAgentRequest) -> ResponsesAgentResponse:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}, *self._to_chat_messages(request)]
 
+        llm = self._llm()
         for _ in range(MAX_STEPS):
-            resp = self.llm.chat.completions.create(
+            resp = llm.chat.completions.create(
                 model=LLM_ENDPOINT, messages=messages, tools=TOOLS, temperature=0.1)
             msg = resp.choices[0].message
 

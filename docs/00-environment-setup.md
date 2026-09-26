@@ -7,7 +7,7 @@
 | Databricks Workspace | 开启 **Unity Catalog** | 所有模型、特征表、函数都注册在 UC 里。2023 年后新建的 workspace 基本默认开启 |
 | 计算资源 | **Serverless notebook**（推荐）或 **ML Runtime 15.4 LTS+** 的集群 | Serverless 最省事；用经典集群时选 “Machine Learning” 运行时 |
 | 权限 | 对某个 catalog 有 `USE CATALOG` + `CREATE SCHEMA` | 没有就找管理员，或使用系统给你的个人 catalog |
-| 基础大模型 | Serving 页面能看到 `databricks-` 开头的端点 | 这是 Foundation Model APIs（按 token 计费），阶段 1/7/8 要用 |
+| 基础大模型 | **Catalog → system → ai** 下能看到模型（如 `system.ai.claude-sonnet-4-5`） | 由 Unity Gateway 提供（按 token 计费），阶段 1/7/8 要用 |
 | 可选 | OpenAI / Anthropic 等 API Key | 仅阶段 5 “外部模型”选做实验需要 |
 
 ### 关于 Databricks Free Edition
@@ -54,8 +54,24 @@ main                              ← catalog（目录）
 ```python
 CATALOG = "main"              # 改成你有权限的 catalog
 SCHEMA  = "ev_battery_lab"    # 可以不改
-LLM_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"   # 去 Serving 页面确认名字
+LLM_MODE = "legacy"                                             # 默认：旧版端点（Free Edition 实测可用）
+LLM_ENDPOINT_LEGACY = "databricks-meta-llama-3-3-70b-instruct"  # 支持工具调用、返回纯文本
+LLM_MODEL_GATEWAY = "system.ai.claude-sonnet-4-5"               # 仅 LLM_MODE = "gateway" 时使用
 ```
+
+**怎么判断用哪种模式**：打开 **Catalog → system → ai → Services** 标签页。
+- 只看到 `bge-large-en` 和一堆 MCP service（Free Edition 常见）→ 用 `legacy`；
+- 看到 `claude-*`、`gpt-*` 等聊天类 Model service → 可以用 `gateway`，名字填 `system.ai.<服务名>`。
+
+不确定就用 `docs/appendix-faq.md` 里的 “模型可用性测试” 代码试一下。
+
+### ⚠️ 2026-09 平台变化：基础模型迁移到 Unity Gateway
+Serving 页面顶部如果有横幅 “Foundation model serving has moved to Unity Gateway”，说明你的 workspace 已切换到新方式：
+- **Serving 页面里不再列出 `databricks-*` 基础模型端点**，这很正常。Serving 页面现在只放你自己部署的模型（阶段 4 的风险模型、阶段 7 的 Agent）。
+- 基础模型注册在 Unity Catalog 的 `system.ai` 下，通过 `https://<workspace>/ai-gateway/mlflow/v1` 这个 OpenAI 兼容地址调用。
+- 原来的 **AI Gateway** 更名为 **Unity Gateway**，成为统一管理模型、Agent、MCP 的控制台。
+
+本项目的代码已兼容两种方式：`LLM_MODE = "legacy"`（默认，通过横幅里的 legacy experience 仍可使用旧端点）或 `"gateway"`。
 
 如果是 **多人共享的 workspace**，端点名称是全 workspace 唯一的，`00_config.py` 已经自动给端点名加了你的用户名前缀，避免冲突。
 
@@ -89,6 +105,6 @@ SELECT * FROM vehicles WHERE max_cell_temp_c_30d >= 60 OR cell_voltage_imbalance
 - [ ] **Catalog** 里能看到 `你的catalog.ev_battery_lab.vehicles`
 - [ ] 打开表 → **Sample Data** 能看到数据，**Columns** 里能看到字段注释
 - [ ] 上面 3 条 SQL 能跑通，并对“物流车风险更高、快充越多风险越高”有直观认识
-- [ ] **Serving** 页面能看到至少一个 `databricks-` 开头、支持 Chat 的端点
+- [ ] **Catalog → system → ai** 下能找到 `LLM_MODEL_GATEWAY` 配置的模型（legacy 模式则是 Serving 的 legacy 页面里有 `databricks-*` 端点）
 
 全部打勾，进入 [阶段 1：Playground](01-playground.md)。

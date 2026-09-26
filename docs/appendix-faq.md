@@ -5,10 +5,48 @@
 | 看不到 | 可能原因 | 处理 |
 |---|---|---|
 | 侧边栏没有 AI/ML 区域 | 工作区 persona 或权限设置 | 左上角切换到 “Machine Learning” 视图，或联系管理员 |
-| Playground 没有 `databricks-` 模型 | 区域未开通 Foundation Model APIs / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
+| Serving 页面没有 `databricks-` 基础模型端点 | **2026-09 起基础模型迁移到 Unity Gateway**（页面顶部有横幅提示） | 去 **Catalog → system → ai** 查看模型，`00_config` 用 `LLM_MODE = "gateway"`；需要旧端点可点横幅中的 legacy experience，并设 `LLM_MODE = "legacy"` |
+| Catalog 里也没有 `system.ai` 模型 | 区域不支持 Unity Gateway / 无查询权限 / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
 | Agents 页面没有 Agent Bricks 模板 | 区域/版本未开放、未启用 Serverless、Beta 功能未开启 | 管理员在 **Previews** 中启用；否则跳过 7.2，代码 Agent 不受影响 |
 | AI Gateway 页面为空 | 还没有给任何端点配置网关 | 完成阶段 5 后再看 |
 | Features 页面找不到特征表 | 表没有主键约束 | 必须通过 `fe.create_table` 或带 `PRIMARY KEY` 的建表语句创建 |
+
+### 模型可用性测试
+不确定该用哪种模式、哪个模型时，新建 notebook 运行（不依赖 `00_config`）：
+
+```python
+%pip install -q openai
+```
+```python
+dbutils.library.restartPython()
+```
+```python
+from databricks.sdk import WorkspaceClient
+from openai import OpenAI
+
+w = WorkspaceClient()
+legacy = w.serving_endpoints.get_open_ai_client()
+token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
+gateway = OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
+
+for mode, client, model in [
+    ("legacy",  legacy,  "databricks-meta-llama-3-3-70b-instruct"),
+    ("legacy",  legacy,  "databricks-claude-haiku-4-5"),
+    ("gateway", gateway, "system.ai.claude-sonnet-4-5"),
+]:
+    try:
+        r = client.chat.completions.create(model=model, messages=[{"role": "user", "content": "用一句话介绍你自己"}], max_tokens=50)
+        print(f"✅ [{mode}] {model} → {r.choices[0].message.content}")
+    except Exception as e:
+        print(f"❌ [{mode}] {model} → {str(e)[:120]}")
+```
+
+**Free Edition 实测结果（2026-09）**：Llama 3.3 70B（legacy）✅；Claude 系列 404；gpt-oss 能调用但返回推理块列表而非纯文本（本项目代码按纯文本解析，不建议选）。
+
+| 现象 | 说明 |
+|---|---|
+| `DeprecationWarning: get_open_ai_client() is deprecated` | 只是提示，功能正常。官方建议今后改用 `databricks-openai` 包的 `DatabricksOpenAI`，本项目为兼容性暂保留 |
+| 返回内容是 `[{'type': 'reasoning', ...}]` 而不是文字 | 推理类模型（如 gpt-oss）的返回格式，换 Llama 等非推理模型即可 |
 
 ## B. 环境与依赖
 

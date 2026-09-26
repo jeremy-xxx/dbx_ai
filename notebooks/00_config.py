@@ -7,7 +7,7 @@
 # MAGIC | 变量 | 含义 |
 # MAGIC |---|---|
 # MAGIC | `CATALOG` / `SCHEMA` | 本项目所有表、模型、函数、Volume 所在位置 |
-# MAGIC | `LLM_ENDPOINT` | 基础大模型端点（去 **Serving** 页面确认名称，需支持 tool calling） |
+# MAGIC | `LLM_MODE` / `LLM_ENDPOINT` | 大模型调用方式与模型名（Unity Gateway 的 `system.ai.*`，或旧版 `databricks-*` 端点） |
 # MAGIC | `RISK_ENDPOINT` | 阶段 4 部署的电池风险模型端点名 |
 
 # COMMAND ----------
@@ -18,10 +18,31 @@ import re
 CATALOG = "main"        # ← 改成你有 CREATE SCHEMA 权限的 catalog（Free Edition 常见为 "workspace"）
 SCHEMA = "ev_battery_lab"
 
-# 基础大模型（Foundation Model API，按 token 计费）。需支持 function/tool calling。
-# 常见可选：databricks-meta-llama-3-3-70b-instruct / databricks-claude-sonnet-4-5 / databricks-gpt-oss-120b 等
-LLM_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
+# 基础大模型（按 token 计费，需支持 function/tool calling）。两种调用方式：
+#   "gateway"：Unity Gateway（2026-09 起的新方式）。模型注册在 UC 的 system.ai 下，
+#              去 Catalog → system → ai 查看可用模型，名称形如 system.ai.claude-sonnet-4-5
+#   "legacy" ：旧版 Foundation Model 端点，名称形如 databricks-meta-llama-3-3-70b-instruct
+#              （Serving 页面顶部横幅里的 “legacy experience” 可以看到）
+# Free Edition 实测（2026-09）：system.ai 下只有向量模型服务，聊天模型需用 legacy；
+#   databricks-meta-llama-3-3-70b-instruct ✅ 可用；Claude 系列 404；
+#   gpt-oss 系列返回“推理块列表”格式，与本项目按纯文本解析的代码不兼容，不建议选。
+LLM_MODE = "legacy"
+LLM_MODEL_GATEWAY = "system.ai.claude-sonnet-4-5"
+LLM_ENDPOINT_LEGACY = "databricks-meta-llama-3-3-70b-instruct"
 # ==================================
+
+# 后续所有 notebook 统一使用 LLM_ENDPOINT 作为 model 名（chat 调用和 ai_query 都适用）
+LLM_ENDPOINT = LLM_MODEL_GATEWAY if LLM_MODE == "gateway" else LLM_ENDPOINT_LEGACY
+
+def get_llm_client():
+    """返回一个 OpenAI 兼容客户端，按 LLM_MODE 指向 Unity Gateway 或旧版 serving-endpoints。"""
+    from databricks.sdk import WorkspaceClient
+    w = WorkspaceClient()
+    if LLM_MODE == "legacy":
+        return w.serving_endpoints.get_open_ai_client()
+    from openai import OpenAI
+    token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
+    return OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
 
 USER = spark.sql("SELECT current_user()").first()[0]
 # 端点名在 workspace 内全局唯一，加上用户名前缀避免与同事冲突
@@ -88,6 +109,7 @@ spark.sql(f"USE SCHEMA {SCHEMA}")
 print(f"""配置已加载
   user            = {USER}
   schema          = {CATALOG}.{SCHEMA}
+  LLM_MODE        = {LLM_MODE}
   LLM_ENDPOINT    = {LLM_ENDPOINT}
   RISK_ENDPOINT   = {RISK_ENDPOINT}
   EXPERIMENT_PATH = {EXPERIMENT_PATH}""")
