@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Generated at runtime by 07b_agent_build_deploy
+notebooks/agent_config.yaml
+
+# Raw battery data (download via 09a, do not commit)
+*.mat
+*.part
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

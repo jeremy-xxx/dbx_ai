@@ -1,0 +1,144 @@
+# 阶段 1：Playground —— 零代码玩转大模型
+
+> **学习目标**
+> 1. 知道 Playground 能做什么、背后调用的是什么；
+> 2. 会用 System Prompt、参数（temperature / max tokens）控制输出；
+> 3. 会并排对比多个模型（以“车主反馈分类”为任务）；
+> 4. 会把 Playground 里的对话“导出成代码”，在 notebook 里复现。
+>
+> **耗时**：45 分钟 **前置**：阶段 0 **费用**：按 token 计费，很少
+
+---
+
+## 1.1 概念：Playground 背后是什么？
+
+Playground 本质上是一个 **聊天 UI**，它调用的是 **Serving** 页面里的 **模型服务端点**。能选的模型分三类：
+
+| 类别 | 例子 | 计费 | 在哪里看到 |
+|---|---|---|---|
+| **Foundation Model APIs（按 token）** | `databricks-meta-llama-3-3-70b-instruct`、`databricks-claude-*`、`databricks-gpt-oss-*` | 按输入/输出 token | Serving 页面，名称以 `databricks-` 开头 |
+| **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
+| **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
+
+> 🔑 **关键认知**：Playground 里做的一切，都能在代码里用 **OpenAI 兼容接口** 1:1 复现。这就是 Databricks “先 UI 原型、再代码工程化” 的思路。
+
+---
+
+## 1.2 UI 实操
+
+### 练习 1：第一次对话
+1. 左侧 **AI/ML → Playground**。
+2. 左上角模型下拉框选择一个 `databricks-` 开头的 Chat 模型（如 Llama 3.3 70B）。
+3. 输入：`用通俗的语言解释什么是动力电池的 SOH（健康度），以及 LFP 和 NMC 电池在寿命上的区别。`
+4. 观察回答下方显示的 **token 数与延迟**。
+
+### 练习 2：System Prompt（系统提示词）
+1. 点击对话框上方的 **System Prompt**（或设置里的 “System prompt”）。
+2. 填入：
+   ```
+   你是一家电动车公司的资深电池售后工程师。回答必须：
+   1) 使用简体中文；2) 不超过 150 字；3) 涉及安全风险时先给出安全提示；4) 最后给出一条可执行的建议。
+   ```
+3. 问：`车主说最近快充时电池包附近很烫，仪表还亮了黄灯，怎么回复？`
+4. 去掉 System Prompt 再问一次，对比变化。
+
+**思考**：System Prompt 和用户消息的区别是什么？（答：System Prompt 是对模型“角色与规则”的全局约束，每轮对话都生效。）
+
+### 练习 3：参数调优
+点开模型旁边的 **设置（⚙）**：
+
+| 参数 | 含义 | 实验 |
+|---|---|---|
+| **Temperature** | 随机性，0=几乎确定，1+=更发散 | 设为 0 连问 3 次，再设为 1.2 连问 3 次，对比一致性 |
+| **Max tokens** | 最大输出长度 | 设为 30，观察回答被截断 |
+| **Top P** | 核采样 | 一般和 temperature 只调一个 |
+
+> 对售后这种要求“口径一致”的场景，你会选择什么 temperature？
+
+### 练习 4：多模型并排对比（结构化输出）
+1. 点击右上角 **“+”**（Add model / Compare）添加第二、第三个模型。
+2. 开启 **同步输入**（Sync），同一个问题同时发给多个模型。
+3. 用下面这个 “车主反馈分类” 任务对比：
+   ```
+   请分析车主反馈，只输出 JSON：
+   {"issue_type": "charging|range|thermal|warning_light|other",
+    "safety_risk": "none|low|high",
+    "needs_inspection": true|false,
+    "reason": "..."}
+   反馈："最近快充到 60% 以后就特别慢，而且电池包那里有点烫，仪表还亮了个黄灯。"
+   ```
+4. 再换两条反馈试试：
+   - `冬天续航从 400 掉到 260 公里，正常吗？`
+   - `车子用了三年，感觉比刚买的时候少跑了 30 公里。`
+5. 记录：哪个模型 **JSON 最稳定**？哪个对 **安全风险判断最谨慎**？哪个 **最快 / 最便宜**？
+
+### 练习 5：给模型挂工具（Tools）预览
+Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Search 等），这正是 Agent 的雏形。
+- 点 **Tools → Add tool**，添加内置的 `system.ai.python_exec`（让模型执行 Python）；
+- 问：`一块 70 kWh 的电池，SOH 从 100% 降到 88%，按 4.5 km/kWh 算续航少了多少公里？请用 Python 计算。`
+- 观察模型如何生成代码、调用工具、再根据结果回答。
+- 阶段 7 我们会把自己写的 UC 函数（查车辆档案、查处置动作）挂上来，并 **一键导出为 Agent 代码**。
+
+### 练习 6：导出代码
+1. 在任意对话中点击 **Get code**（或 `</>` 图标）。
+2. 你会看到 Python / curl / SQL (`ai_query`) 等多种调用方式。
+3. 复制 Python 版本，对照 `notebooks/01_playground_to_code.py`，理解每一行。
+
+---
+
+## 1.3 代码实践：`01_playground_to_code.py`
+
+| 小节 | 你会学到 |
+|---|---|
+| 1. 列出可用基础模型端点 | `WorkspaceClient().serving_endpoints.list()` |
+| 2. OpenAI 兼容客户端 | `w.serving_endpoints.get_open_ai_client()`，无需手动管 token |
+| 3. System prompt + temperature 实验 | 与 Playground 练习 2、3 对应 |
+| 4. 结构化 JSON 输出：车主反馈分类 | `response_format` 与“解析失败兜底” |
+| 5. MLflow Tracing 预告 | `mlflow.openai.autolog()`，每次调用自动记录到 **Experiments** |
+| 6. SQL 里调大模型 | `ai_query()` —— 对整张 `vehicles` 表批量生成“电池状态点评” |
+
+### 核心代码解读
+
+```python
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient()                              # 在 notebook 里自动鉴权
+client = w.serving_endpoints.get_open_ai_client()  # 返回标准 openai.OpenAI 对象
+
+resp = client.chat.completions.create(
+    model=LLM_ENDPOINT,                            # ← 就是 Serving 端点名
+    messages=[{"role": "system", "content": "..."},
+              {"role": "user", "content": "..."}],
+    temperature=0.2,
+)
+```
+
+- `base_url` 实际是 `https://<workspace>/serving-endpoints`，所以 **任何支持 OpenAI SDK 的框架**（LangChain、LlamaIndex、DSPy…）都能直接接 Databricks 模型。
+
+```sql
+SELECT vehicle_id,
+       ai_query('databricks-meta-llama-3-3-70b-instruct',
+                concat('用一句话点评这块电池的状态：', to_json(struct(*)))) AS comment
+FROM vehicles LIMIT 5
+```
+
+- `ai_query` 让分析师在 SQL 里批量调用 LLM，阶段 8 会用它批量生成车主进站通知。
+
+---
+
+## 1.4 检查点
+
+- [ ] 能说清 Playground 与 Serving 端点的关系
+- [ ] 完成多模型对比，并记录了你心目中“结构化输出最稳”的模型
+- [ ] notebook 中 `ai_query` 能跑通
+- [ ] 在 **Experiments** 页面找到 `ev-battery-genai` 实验，并打开一条 **Trace**，看到了输入、输出、token 数
+
+## 1.5 常见坑
+
+| 现象 | 原因 / 解决 |
+|---|---|
+| 模型下拉框里没有 `databricks-` 模型 | 所在区域未开通 Foundation Model APIs，或管理员禁用了；联系管理员或换区域 |
+| `ai_query` 报错不支持 | 需要 Serverless / SQL Warehouse / DBR 15.4+ |
+| JSON 偶尔解析失败 | 降低 temperature；使用 `response_format`；代码中加 try/except 兜底 |
+| 模型对“过热”判断不够谨慎 | 在 System Prompt 中明确安全规则——这正是阶段 7 要把规程交给 Agent 的原因 |
+
+➡️ 下一步：[阶段 2：Experiments](02-experiments.md)
