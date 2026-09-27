@@ -83,7 +83,7 @@ Databricks 上构建 Agent 的两条路：
 4. 查不到时返回 NULL / 明确提示，不要抛异常。
 5. 参数名不要和表列名相同（避免 SQL 歧义，所以用 `vid` / `doc` 而不是 `vehicle_id` / `doc_name`）。
 
-**Playground 练习**（重要！）：按 `07a` 最后一节的步骤，在 Playground 里挂上这些 UC 函数聊天，然后点 **Get code → Create agent notebook** 导出 Agent 代码（**Export to Databricks Apps** 则会导出为 Databricks App）。
+**Playground 练习**（重要！）：按 `07a` 最后一节的步骤，在 Playground 里通过 **Tools → UC Function** 标签逐个挂上这些 UC 函数聊天，然后点 **Get code → Create agent notebook** 导出 Agent 代码（**Export to Databricks Apps** 则会导出为 Databricks App）。
 
 ---
 
@@ -192,6 +192,10 @@ mlflow.genai.evaluate(data=eval_data, predict_fn=predict_fn, scorers=[
 3. **Information Extraction**：用 Agent Bricks 的 Information Extraction 模板，从一批“维修工单文本”中抽取 `故障部件 / 故障现象 / 处理方式 / 是否质保`。
 4. **换框架**：用 `databricks-langchain` + LangGraph 的 `create_react_agent` 重写 `agent.py`，保持 `ResponsesAgent` 接口不变。
 5. **生产监控**：为已部署的 Agent 配置生产监控（scheduled scorers），让 `safety_redline_escalation` 自动对线上 Trace 采样打分。
+
+6. **MCP 工具**：在 Playground 的 **Tools → MCP Servers** 中试两种接入方式：
+   - **Unity Catalog Function**：选 schema `ev_battery_lab`，把 4 个函数整批接入，观察模型是否会误用 `get_battery_features`（理解“逐个挑选”与“整批接入”的取舍）；
+   - **UC MCP Service → web_search**：让 Agent 在给建议前联网查询某款电池的公开召回信息。思考：外部搜索结果可信吗？该如何在 System Prompt 中约束它的使用？
 
 ## 7.9 检查点
 

@@ -171,7 +171,8 @@ print("value:", res.value, "\nerror:", res.error)
 # MAGIC %md
 # MAGIC ## 5. 👉 去 Playground 试试！
 # MAGIC 1. 打开 **AI/ML → Playground**，选择 `LLM_MODEL` 对应的模型；
-# MAGIC 2. **Tools → Add tool → Unity Catalog function**，添加 `get_vehicle_profile`、`get_maintenance_actions`、`get_policy_doc`；
+# MAGIC 2. 点 **Tools** → 在 **UC Function** 标签里逐个添加 `get_vehicle_profile`、`get_maintenance_actions`、`get_policy_doc`，保存；
+# MAGIC    （不要用 MCP Servers → Unity Catalog Function 按 schema 整批接入：那样会把只给风险模型内部用的 `get_battery_features` 也暴露给大模型）
 # MAGIC 3. System prompt 填：`你是电池售后助手。回答前先用工具查询车辆档案和公司规程，用中文回答。`
 # MAGIC 4. 问（把 ID 换成上面打印的红线车辆）：`车辆 V0xxxx 现在什么状况？在质保内吗？应该怎么处理？`
 # MAGIC 5. 展开每一步的工具调用，看看模型传了什么参数、是否注意到 `safety_redline=true`；

@@ -84,11 +84,32 @@ Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上�
 5. 记录：哪个模型 **JSON 最稳定**？哪个对 **安全风险判断最谨慎**？哪个 **最快 / 最便宜**？
 
 ### 练习 5：给模型挂工具（Tools）预览
-Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Search 等），这正是 Agent 的雏形。
-- 点 **Tools → Add tool**，添加内置的 `system.ai.python_exec`（让模型执行 Python）；
-- 问：`一块 70 kWh 的电池，SOH 从 100% 降到 88%，按 4.5 km/kWh 算续航少了多少公里？请用 Python 计算。`
-- 观察模型如何生成代码、调用工具、再根据结果回答。
-- 阶段 7 我们会把自己写的 UC 函数（查车辆档案、查处置动作）挂上来，并 **一键导出为 Agent 代码**。
+Playground 支持给模型添加工具，这正是 Agent 的雏形。点模型名称右侧的 **Tools**，打开 **Add tools** 窗口，有 4 个标签页：
+
+| 标签 | 作用 | 本项目 |
+|---|---|---|
+| **UC Function** | 逐个挑选 Unity Catalog 函数当工具（如 `system.ai.python_exec`、阶段 7 自建的函数） | ✅ 阶段 1、7 主要用这个 |
+| **Function Definition** | 只写工具的 JSON 说明书（名称、参数），**不含执行代码**，用来测试模型会不会调用、传什么参数 | 可选 |
+| **Vector Search** | 挂向量索引，让模型检索文档（RAG） | 未使用 |
+| **MCP Servers** | 通过 MCP 协议一次接入一组工具（见下表） | 了解即可 |
+
+**MCP Servers** 页里的 5 种来源（MCP = Model Context Protocol，标准化的工具接入协议，任何支持 MCP 的 Agent 都能用）：
+
+| 来源 | 接入什么 |
+|---|---|
+| **UC MCP Service** | Databricks 内置的外部服务：`web_search`、`github`、`gmail`、`slack` 等（请求经 Unity Gateway 转发；gmail 这类需要先授权账号） |
+| **Unity Catalog Function** | 选一个 **schema**，把其中**所有**函数整批作为工具（与 UC Function 标签的区别：按 schema 整批 vs 逐个挑选） |
+| **AI Search** | 向量索引的 MCP 形式（Vector Search 在新版中叫 AI Search） |
+| **Genie Agent** | 把 Genie 空间（自然语言查表助手）作为工具 |
+| **Custom MCP Server** | 自己在 Databricks Apps 上部署的 MCP 服务（App 名须以 `mcp-` 开头） |
+
+**实验**（模型选 Qwen3 Next Instruct）：
+1. **Tools → UC Function** 标签，添加 `system.ai.python_exec`（让模型执行 Python），保存；
+2. 问：`一块 70 kWh 的电池，SOH 从 100% 降到 88%，按 4.5 km/kWh 算续航少了多少公里？请用 Python 计算。`
+3. 观察模型如何生成代码、调用工具、再根据结果回答；
+4. （可选）**MCP Servers → UC MCP Service** 选 `web_search`，问一个需要联网的问题，比如 “2026 年动力电池行业有什么新闻？”。
+
+阶段 7 我们会把自己写的 UC 函数（查车辆档案、查处置动作）挂上来，并通过 **Get code → Create agent notebook** 导出为 Agent 代码。
 
 ### 练习 6：导出代码（Get code 菜单）
 Playground 顶部模型名称右侧有 **Get code** 下拉菜单，可以把你调好的对话“导出”：
