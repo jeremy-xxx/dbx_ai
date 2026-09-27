@@ -149,6 +149,7 @@ with mlflow.start_run(run_name="gbdt_with_feature_store") as run:
         training_set=training_set,
         registered_model_name=FS_MODEL_NAME,
         infer_input_example=True,
+        skops_trusted_types=["sklearn.tree._tree.Tree"],   # GBDT 由决策树组成，需显式信任（见 02 notebook 的说明）
     )
 print(f"AUC = {metrics['roc_auc']:.4f}（对比阶段 2 的最佳 AUC，衍生特征有帮助吗？）")
 

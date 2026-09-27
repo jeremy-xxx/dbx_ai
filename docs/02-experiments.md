@@ -144,5 +144,7 @@ best = mlflow.search_runs(
 | `log_model` 报 `name` 参数不存在 | MLflow < 3 用的是 `artifact_path="model"`；升级 MLflow 或改参数名 |
 | 签名里整型列告警 “integer column may have missing values” | 训练前把数值列转成 `float64`（notebook 已处理） |
 | 实验创建权限错误 | `EXPERIMENT_PATH` 必须在你有写权限的目录（默认用你的用户目录） |
+| 随机森林 / GBDT 保存时报 `MlflowException: ... untrusted types ... ['sklearn.tree._tree.Tree']`，Run 显示红色 ✗ | 新版 MLflow 默认用更安全的 **skops** 格式保存 sklearn 模型，只接受白名单里的类型；树模型内部的决策树类型不在默认白名单。在 `log_model` 中加 `skops_trusted_types=["sklearn.tree._tree.Tree"]`（notebook 已加）。逻辑回归没有树，不受影响 |
+| 输出大量 `WARNING ... getContext().extraContext() is not a CommandContext accessor` | Serverless 环境下 MLflow 读不到某个环境标签而跳过，**不影响训练和记录**，可忽略 |
 
 ➡️ 下一步：[阶段 3：Models](03-models.md)

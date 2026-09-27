@@ -225,6 +225,7 @@ for fs_name, feats in FEATURE_SETS.items():
                 sk_model=model, name="model",
                 signature=infer_signature(train[feats], model.predict(train[feats].head(3))),
                 input_example=train[feats].head(3),
+                skops_trusted_types=["sklearn.tree._tree.Tree"],   # GBDT 由决策树组成，需显式信任（见 02 notebook 的说明）
             )
             mlflow.set_tags({"stage": "lab-09", "target": "log10_cycle_life"})
             results.append({"run_id": run.info.run_id, "model": m_name, "feature_set": fs_name, **m})

@@ -85,6 +85,8 @@ Serverless 启动快、免运维，本项目全部 notebook 都按 Serverless �
 | `Model signature is required for UC` | log_model 时传 `signature` 或 `input_example` |
 | `RESOURCE_DOES_NOT_EXIST: alias champion` | 先跑阶段 3 设置别名 |
 | `register_model` 注册到了 Workspace Registry | 加 `mlflow.set_registry_uri("databricks-uc")`，模型名用三级命名 |
+| `MlflowException: The saved sklearn model references untrusted types ... sklearn.tree._tree.Tree` | 新版 MLflow 默认用 skops 格式保存 sklearn 模型，树模型需显式信任：`log_model(..., skops_trusted_types=["sklearn.tree._tree.Tree"])`（02、06、09b 已加）。也可用 `serialization_format="cloudpickle"` 改回传统格式，但 pickle 加载时可执行任意代码，安全性较差 |
+| `WARNING ... getContext().extraContext() is not a CommandContext accessor` | Serverless 下读不到某个环境标签，可忽略 |
 
 ## D. Serving 相关
 

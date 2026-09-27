@@ -149,6 +149,9 @@ def train_and_log(run_name: str, estimator_cls, params: dict, nested: bool = Fal
             signature=signature,
             input_example=X_train.head(3),
             pyfunc_predict_fn="predict_proba",   # Serving 时返回 [P(正常), P(故障)]
+            # 新版 MLflow 默认用更安全的 skops 格式保存 sklearn 模型，只允许白名单里的类型；
+            # 树模型（随机森林、GBDT）内部的决策树类型不在默认白名单，需要显式信任，否则报 “untrusted types”
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
         )
         mlflow.set_tags({"candidate": "true", "stage": "lab-02"})
         print(f"{run_name:<22} auc={metrics['roc_auc']:.4f} recall={metrics['recall']:.3f} "
