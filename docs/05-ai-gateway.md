@@ -122,6 +122,30 @@ GROUP BY u.requester
 
 ---
 
+## 5.4.1 Unity Gateway 页面：基础模型的用量与治理
+
+前面治理的是 **你自己部署的模型端点**（风险模型）。本项目默认通过 Unity Gateway 调用的大模型（`system.ai.qwen3-next-80b-a3b-instruct`）也受同一个网关治理，入口是左侧 **AI/ML → Unity Gateway**：
+
+| 标签页 | 内容 |
+|---|---|
+| **Models** | 可调用的模型服务列表。**Total tokens (7d)** 是近 7 天 token 用量；**Configuration** 列的图标代表该模型的治理配置（如用量监控、限流等） |
+| **Providers** | 外部模型厂商（OpenAI、Anthropic 等）的接入配置，对应 5.4 的外部模型 |
+| **MCPs** | MCP 服务（gmail、github、web_search…），Agent 可以把它们当工具用 |
+| **Skills** | 可复用的 Agent 技能 |
+| **Agents** | 编码 Agent 的接入与用量 |
+
+**实操**：
+1. 运行完阶段 1 的 notebook 后，回到 **Unity Gateway → Models**，找到 `qwen3-next-80b-a3b-instruct`，**Total tokens (7d)** 应该从 0 变成几千；
+2. 点进这个模型，查看 **Metrics**：请求数、token、延迟随时间的变化；
+3. 查看模型详情中能否配置 **限流 / 预算 / 护栏**（Free Edition 可能只读），和 5.2 中给自定义端点配置网关对比；
+4. 用 SQL 查询基础模型的用量系统表（需要系统表访问权限）：
+   ```sql
+   SELECT * FROM system.ai_gateway.usage ORDER BY 1 DESC LIMIT 20
+   ```
+   > 字段结构请以你 workspace 中的实际表为准（`DESCRIBE system.ai_gateway.usage`）。`ai_query` 批处理的调用也会记录在这里。
+
+> 💡 这就是 Unity Gateway 的价值：无论是 Databricks 托管的模型、外部厂商的模型，还是你自己部署的端点，**用量、成本、权限都在一个地方看和管**。
+
 ## 5.5 练习
 
 1. 把限流从 “每用户 5 次/分钟” 改为 “整个端点 100 次/分钟”，思考两者区别（per-user 防止单方滥用；per-endpoint 保护后端容量/预算）。

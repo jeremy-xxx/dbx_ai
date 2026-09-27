@@ -21,7 +21,7 @@ dbutils.library.restartPython()
 # MAGIC %md
 # MAGIC ## 1. 找到可用的基础模型
 # MAGIC 2026-09 起，基础模型统一由 **Unity Gateway** 提供，模型注册在 Unity Catalog 的 `system.ai` 下：
-# MAGIC - 在 **Catalog → system → ai** 中浏览可用模型（名称形如 `system.ai.claude-sonnet-4-5`），点开模型的 **Metrics** 标签可看到调用记录；
+# MAGIC - 在左侧 **Unity Gateway → Models** 中浏览可调用的模型（名称形如 `system.ai.qwen3-next-80b-a3b-instruct`），点开模型的 **Metrics** 标签可看到调用记录；
 # MAGIC - 旧版 `databricks-*` 端点仍可通过 Serving 页面顶部的 “legacy experience” 访问，对应 `00_config` 中 `LLM_MODE = "legacy"`。
 # MAGIC
 # MAGIC 下面发一个最小请求，验证 `00_config` 里配置的模型可用。

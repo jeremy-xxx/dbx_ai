@@ -142,4 +142,4 @@ databricks-aiml-lab/
 
 - 编写时参考 Databricks 2025–2026 年的产品形态：MLflow 3、Unity Catalog 模型注册、Mosaic AI Agent Framework、Agent Bricks、AI Gateway。
 - Databricks UI 更新很快，按钮名称可能与文档略有不同；**以功能含义为准**，遇到对不上的情况看 [appendix-faq.md](docs/appendix-faq.md)。
-- **2026-09 起基础模型迁移到 Unity Gateway**（原 AI Gateway 更名）：模型注册在 `system.ai` 下（如 `system.ai.claude-sonnet-4-5`），不再出现在 Serving 页面。代码通过 `LLM_MODE` 同时支持新方式（`gateway`）和旧版 `databricks-*` 端点（`legacy`），详见 [docs/00](docs/00-environment-setup.md)。可用模型因区域而异，请在 **Catalog → system → ai** 确认。
+- **2026-09 起基础模型迁移到 Unity Gateway**（原 AI Gateway 更名）：模型注册在 `system.ai` 下（如 `system.ai.qwen3-next-80b-a3b-instruct`），不再出现在 Serving 页面。代码通过 `LLM_MODE` 同时支持新方式（`gateway`）和旧版 `databricks-*` 端点（`legacy`），详见 [docs/00](docs/00-environment-setup.md)。可用模型因区域而异，请在 **Catalog → system → ai** 确认。

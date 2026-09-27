@@ -4,6 +4,9 @@
 # MAGIC
 # MAGIC 其它 notebook 通过 `%run ./00_config` 引用本文件，所以 **只在这里改配置**。
 # MAGIC
+# MAGIC 运行本文件会：① 定义全局变量（表名、模型名、端点名…）② 定义 `get_llm_client()` ③ 创建并切换到 schema（已存在则跳过，不删数据）④ 打印当前配置。
+# MAGIC **平时不需要单独运行**，其它 notebook 会自动执行它；只在首次导入或修改配置后单独运行一次，用来检查打印结果。详见 `docs/00-environment-setup.md` 0.4.1 节。
+# MAGIC
 # MAGIC | 变量 | 含义 |
 # MAGIC |---|---|
 # MAGIC | `CATALOG` / `SCHEMA` | 本项目所有表、模型、函数、Volume 所在位置 |
@@ -20,14 +23,17 @@ SCHEMA = "ev_battery_lab"
 
 # 基础大模型（按 token 计费，需支持 function/tool calling）。两种调用方式：
 #   "gateway"：Unity Gateway（2026-09 起的新方式）。模型注册在 UC 的 system.ai 下，
-#              去 Catalog → system → ai 查看可用模型，名称形如 system.ai.claude-sonnet-4-5
+#              去 AI/ML → Unity Gateway → Models 查看可调用模型，名称形如 system.ai.qwen3-next-80b-a3b-instruct
 #   "legacy" ：旧版 Foundation Model 端点，名称形如 databricks-meta-llama-3-3-70b-instruct
 #              （Serving 页面顶部横幅里的 “legacy experience” 可以看到）
-# Free Edition 实测（2026-09）：system.ai 下只有向量模型服务，聊天模型需用 legacy；
-#   databricks-meta-llama-3-3-70b-instruct ✅ 可用；Claude 系列 404；
-#   gpt-oss 系列返回“推理块列表”格式，与本项目按纯文本解析的代码不兼容，不建议选。
-LLM_MODE = "legacy"
-LLM_MODEL_GATEWAY = "system.ai.claude-sonnet-4-5"
+# Free Edition 实测（2026-09）：
+#   gateway ✅ system.ai.qwen3-next-80b-a3b-instruct（中文好、支持工具调用、返回纯文本）← 默认
+#   gateway ✅ system.ai.llama-4-maverick（备选）
+#   legacy  ✅ databricks-meta-llama-3-3-70b-instruct（Agent 部署到 Model Serving 后若 gateway 鉴权失败，切回它）
+#   ⚠️ 推理类模型（gpt-oss、qwen35-122b-a10b）返回“推理块列表”而非纯文本，不建议选；Claude 系列在 Free Edition 不可用
+# 可用的 gateway 模型：左侧 AI/ML → Unity Gateway → Models（Location 为 system.ai 的那些）
+LLM_MODE = "gateway"
+LLM_MODEL_GATEWAY = "system.ai.qwen3-next-80b-a3b-instruct"
 LLM_ENDPOINT_LEGACY = "databricks-meta-llama-3-3-70b-instruct"
 # ==================================
 

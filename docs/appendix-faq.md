@@ -20,6 +20,8 @@
 ```python
 dbutils.library.restartPython()
 ```
+同时测试 **聊天** 和 **工具调用**（阶段 7 必需）：
+
 ```python
 from databricks.sdk import WorkspaceClient
 from openai import OpenAI
@@ -29,24 +31,44 @@ legacy = w.serving_endpoints.get_open_ai_client()
 token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
 gateway = OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
 
+tools = [{"type": "function", "function": {
+    "name": "get_vehicle_profile", "description": "根据车辆ID查询车辆档案",
+    "parameters": {"type": "object", "properties": {"vehicle_id": {"type": "string"}}, "required": ["vehicle_id"]}}}]
+
 for mode, client, model in [
+    ("gateway", gateway, "system.ai.qwen3-next-80b-a3b-instruct"),
+    ("gateway", gateway, "system.ai.llama-4-maverick"),
     ("legacy",  legacy,  "databricks-meta-llama-3-3-70b-instruct"),
-    ("legacy",  legacy,  "databricks-claude-haiku-4-5"),
-    ("gateway", gateway, "system.ai.claude-sonnet-4-5"),
 ]:
+    print(f"===== [{mode}] {model}")
     try:
-        r = client.chat.completions.create(model=model, messages=[{"role": "user", "content": "用一句话介绍你自己"}], max_tokens=50)
-        print(f"✅ [{mode}] {model} → {r.choices[0].message.content}")
+        r = client.chat.completions.create(model=model, max_tokens=60,
+            messages=[{"role": "user", "content": "用一句话介绍你自己"}])
+        print("  聊天 ✅", r.choices[0].message.content)
+        r = client.chat.completions.create(model=model, tools=tools,
+            messages=[{"role": "user", "content": "帮我查一下车辆 V00042 的档案"}])
+        calls = r.choices[0].message.tool_calls
+        print("  工具调用", "✅" if calls else "❌", calls[0].function.arguments if calls else r.choices[0].message.content)
     except Exception as e:
-        print(f"❌ [{mode}] {model} → {str(e)[:120]}")
+        print("  ❌", str(e)[:150])
 ```
 
-**Free Edition 实测结果（2026-09）**：Llama 3.3 70B（legacy）✅；Claude 系列 404；gpt-oss 能调用但返回推理块列表而非纯文本（本项目代码按纯文本解析，不建议选）。
+**Free Edition 实测结果（2026-09）**：
+
+| 通道 | 模型 | 聊天 | 工具调用 | 备注 |
+|---|---|---|---|---|
+| gateway | `system.ai.qwen3-next-80b-a3b-instruct` | ✅ | ✅ | **默认**，中文最好 |
+| gateway | `system.ai.llama-4-maverick` | ✅ | ✅ | 备选 |
+| gateway | `system.ai.qwen35-122b-a10b` | ⚠️ 推理块格式 | ✅ | 推理模型，不建议 |
+| legacy | `databricks-meta-llama-3-3-70b-instruct` | ✅ | — | 备用（Agent 部署鉴权失败时） |
+| legacy | `databricks-gpt-oss-120b` | ⚠️ 推理块格式 | — | 推理模型，不建议 |
+| 两者 | Claude 系列 | ❌ 404 | — | Free Edition 未开放 |
 
 | 现象 | 说明 |
 |---|---|
 | `DeprecationWarning: get_open_ai_client() is deprecated` | 只是提示，功能正常。官方建议今后改用 `databricks-openai` 包的 `DatabricksOpenAI`，本项目为兼容性暂保留 |
-| 返回内容是 `[{'type': 'reasoning', ...}]` 而不是文字 | 推理类模型（如 gpt-oss）的返回格式，换 Llama 等非推理模型即可 |
+| 返回内容是 `[{'type': 'reasoning', ...}]` 而不是文字 | 推理类模型（如 gpt-oss、qwen35）的返回格式。换非推理模型即可；`agent.py` 里的 `as_text()` 也会自动只取最终文字 |
+| `system.ai.xxx` 报 404 “does not exist” | 这个名字只在 Catalog 的 **Models（登记册）** 里，没有开放成服务。以 **Unity Gateway → Models** 页面列出的为准 |
 
 ## B. 环境与依赖
 

@@ -16,7 +16,7 @@ Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上�
 
 | 类别 | 例子 | 计费 | 在哪里看到 |
 |---|---|---|---|
-| **Databricks 提供的基础模型（按 token）** | `system.ai.claude-sonnet-4-5`、`system.ai.gpt-5-2` 等（旧版名称 `databricks-*`） | 按输入/输出 token | **Catalog → system → ai**（2026-09 起由 Unity Gateway 提供，不再列在 Serving 页面） |
+| **Databricks 提供的基础模型（按 token）** | `system.ai.qwen3-next-80b-a3b-instruct`、`system.ai.llama-4-maverick` 等（可用列表见 Unity Gateway → Models）（旧版名称 `databricks-*`） | 按输入/输出 token | **Catalog → system → ai**（2026-09 起由 Unity Gateway 提供，不再列在 Serving 页面） |
 | **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
 | **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
 
@@ -107,7 +107,7 @@ token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
 client = OpenAI(api_key=token, base_url=f"{w.config.host}/ai-gateway/mlflow/v1")
 
 resp = client.chat.completions.create(
-    model="system.ai.claude-sonnet-4-5",          # ← UC 中的模型全名
+    model="system.ai.qwen3-next-80b-a3b-instruct",          # ← UC 中的模型全名
     messages=[{"role": "system", "content": "..."},
               {"role": "user", "content": "..."}],
     temperature=0.2,
@@ -119,7 +119,7 @@ resp = client.chat.completions.create(
 
 ```sql
 SELECT vehicle_id,
-       ai_query('system.ai.claude-sonnet-4-5',
+       ai_query('system.ai.qwen3-next-80b-a3b-instruct',
                 concat('用一句话点评这块电池的状态：', to_json(struct(*)))) AS comment
 FROM vehicles LIMIT 5
 ```

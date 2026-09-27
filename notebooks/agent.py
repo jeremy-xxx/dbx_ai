@@ -119,6 +119,20 @@ TOOLS = [
 ]
 
 
+def as_text(content: Any) -> str:
+    """把模型返回的 content 统一成纯文本。
+    普通模型返回字符串；推理类模型（gpt-oss、qwen35 等）可能返回 [{"type": "reasoning", ...}, {"type": "text", "text": ...}]，
+    这里丢弃推理过程，只保留最终文字。"""
+    if content is None or isinstance(content, str):
+        return content or ""
+    parts = []
+    for c in content:
+        c = c if isinstance(c, dict) else getattr(c, "model_dump", lambda: {})()
+        if c.get("type") in ("text", "output_text"):
+            parts.append(c.get("text", ""))
+    return "".join(parts)
+
+
 def risk_level(p: float) -> str:
     """与 battery_maintenance_sop.md 中的定义保持一致。"""
     return "high" if p >= 0.6 else "medium" if p >= 0.3 else "low"
@@ -191,11 +205,11 @@ class BatteryServiceAgent(ResponsesAgent):
 
             if not msg.tool_calls:  # 模型不再调用工具 → 最终回答
                 return ResponsesAgentResponse(
-                    output=[self.create_text_output_item(text=msg.content or "", id=str(uuid4()))])
+                    output=[self.create_text_output_item(text=as_text(msg.content), id=str(uuid4()))])
 
             messages.append({
                 "role": "assistant",
-                "content": msg.content,
+                "content": as_text(msg.content) or None,
                 "tool_calls": [
                     {"id": tc.id, "type": "function",
                      "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
