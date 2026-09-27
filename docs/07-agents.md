@@ -83,7 +83,7 @@ Databricks 上构建 Agent 的两条路：
 4. 查不到时返回 NULL / 明确提示，不要抛异常。
 5. 参数名不要和表列名相同（避免 SQL 歧义，所以用 `vid` / `doc` 而不是 `vehicle_id` / `doc_name`）。
 
-**Playground 练习**（重要！）：按 `07a` 最后一节的步骤，在 Playground 里挂上这些 UC 函数聊天，并点 **Export** 导出代码。
+**Playground 练习**（重要！）：按 `07a` 最后一节的步骤，在 Playground 里挂上这些 UC 函数聊天，然后点 **Get code → Create agent notebook** 导出 Agent 代码（**Export to Databricks Apps** 则会导出为 Databricks App）。
 
 ---
 

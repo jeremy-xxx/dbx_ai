@@ -79,10 +79,20 @@ Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Searc
 - 观察模型如何生成代码、调用工具、再根据结果回答。
 - 阶段 7 我们会把自己写的 UC 函数（查车辆档案、查处置动作）挂上来，并 **一键导出为 Agent 代码**。
 
-### 练习 6：导出代码
-1. 在任意对话中点击 **Get code**（或 `</>` 图标）。
-2. 你会看到 Python / curl / SQL (`ai_query`) 等多种调用方式。
-3. 复制 Python 版本，对照 `notebooks/01_playground_to_code.py`，理解每一行。
+### 练习 6：导出代码（Get code 菜单）
+Playground 顶部模型名称右侧有 **Get code** 下拉菜单，可以把你调好的对话“导出”：
+
+| 选项 | 生成什么 | 何时用 |
+|---|---|---|
+| **Python API** | Python 调用代码（`OpenAI(api_key=..., base_url=".../ai-gateway/mlflow/v1")`） | **本阶段** |
+| **Curl API** | 命令行调用示例 | 本阶段 |
+| **Apply on data** | 对一张表批量调用模型的 `ai_query()` SQL | **本阶段**，阶段 8 也会用到 |
+| **Create agent notebook** | 包含 Agent 代码的 notebook（MLflow `ResponsesAgent` + 工具 + 注册/部署到 Model Serving） | 阶段 7 |
+| **Export to Databricks Apps**（Recommended） | 把 Agent 导出为 Databricks App 项目（官方推荐的新部署方式） | 阶段 7（了解即可） |
+
+本阶段练习：
+1. 选择 **Qwen3 Next Instruct**，发一句话，点 **Get code → Python API**，对照 `notebooks/01_playground_to_code.py` 和 `00_config.py` 里的 `get_llm_client()`，理解每一行。区别：导出代码从环境变量读令牌（适合在 Databricks 外部运行），项目代码自动使用你的登录身份；
+2. 点 **Get code → Apply on data**，选择 `vehicles` 表，生成一段 `ai_query` SQL，和 notebook 第 6 节手写的 SQL 对比。
 
 ---
 

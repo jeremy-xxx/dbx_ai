@@ -175,7 +175,8 @@ print("value:", res.value, "\nerror:", res.error)
 # MAGIC 3. System prompt 填：`你是电池售后助手。回答前先用工具查询车辆档案和公司规程，用中文回答。`
 # MAGIC 4. 问（把 ID 换成上面打印的红线车辆）：`车辆 V0xxxx 现在什么状况？在质保内吗？应该怎么处理？`
 # MAGIC 5. 展开每一步的工具调用，看看模型传了什么参数、是否注意到 `safety_redline=true`；
-# MAGIC 6. 点击 **Export**（导出） → 会生成一套 Agent notebook 代码。和我们手写的 `agent.py` 对比一下！
+# MAGIC 6. 点击顶部 **Get code → Create agent notebook** → 会生成一套 Agent notebook 代码，和我们手写的 `agent.py` 对比一下！
+# MAGIC    （同一菜单里的 **Export to Databricks Apps** 会导出为 Databricks App，是官方推荐的新部署方式，了解即可。）
 
 # COMMAND ----------
 
