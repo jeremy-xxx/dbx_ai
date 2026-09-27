@@ -126,7 +126,47 @@ Playground 顶部模型名称右侧有 **Get code** 下拉菜单，可以把你�
 
 本阶段练习：
 1. 选择 **Qwen3 Next Instruct**（**不挂工具**），发一句话，点 **Get code → Python API**，对照 `notebooks/01_playground_to_code.py` 和 `00_config.py` 里的 `get_llm_client()`，理解每一行。区别：导出代码从环境变量读令牌（适合在 Databricks 外部运行），项目代码自动使用你的登录身份；
-2. 点 **Get code → Apply on data**，选择 `vehicles` 表，生成一段 `ai_query` SQL，和 notebook 第 6 节手写的 SQL 对比。
+2. 点 **Get code → Apply on data**（批量推理向导，见下）。
+
+#### Apply on data：批量推理向导
+向导只有两步：**① 选一张表 → ② 选一列**，然后 **Open code in SQL Editor** 生成 `ai_query` SQL。
+
+它的设计场景是“**一列文本 + 一个提示词**”，比如对“客户评论”列逐行做情感分析。但 `vehicles` 表**没有文本列**，都是数字和简短类别，只把一列（如 `soh_pct = 92.5`）交给模型没有意义。所以做法是：**先随便选一列生成代码，再在 SQL Editor 里改成多列。**
+
+步骤：
+1. ① 选 `main → ev_battery_lab → vehicles`；② **Choose column** 选 `vehicle_model`；
+2. 点 **Open code in SQL Editor**，先看生成的 SQL 长什么样，**别急着运行**：它可能没有 `LIMIT`，会对 5000 行全部调用模型，既慢又消耗配额；
+3. 改成下面这段再运行：
+
+```sql
+SELECT vehicle_id, vehicle_model, battery_chemistry, soh_pct, max_cell_temp_c_30d, cell_voltage_imbalance_mv,
+       ai_query(
+         'system.ai.qwen3-next-80b-a3b-instruct',
+         concat(
+           '你是电池售后工程师。用一句中文（不超过40字）点评这块动力电池的状态：',
+           to_json(named_struct(
+             'model', vehicle_model, 'chemistry', battery_chemistry,
+             'age_months', vehicle_age_months, 'soh_pct', soh_pct,
+             'fast_charge_ratio', fast_charge_ratio,
+             'max_temp_c', max_cell_temp_c_30d, 'imbalance_mv', cell_voltage_imbalance_mv))
+         )
+       ) AS llm_comment
+FROM main.ev_battery_lab.vehicles
+ORDER BY soh_pct            -- 先看健康度最低的车，点评更有内容
+LIMIT 5                     -- 先小规模测试
+```
+
+（`catalog` 不是 `main` 的话，把表名改成你自己的。）
+
+| | 向导生成的 SQL | 修改后 |
+|---|---|---|
+| 给模型的信息 | 只有一列 | `to_json(named_struct(...))` 把 7 个字段打包成一段 JSON |
+| 行数 | 可能是全表 | `LIMIT 5` |
+| 提示词 | 通用模板 | 明确角色、语言、字数 |
+
+运行后看到 5 行带 `llm_comment` 的结果，练习 6 就完成了。
+
+> 💡 这就是批量调用大模型的通用套路：**多列打包成 JSON + 写清楚的提示词 + 先用 LIMIT 小规模测试**。notebook 第 6 节、阶段 8 批量生成进站通知，用的都是同样的写法。
 
 ---
 
