@@ -122,8 +122,10 @@ Playground 顶部模型名称右侧有 **Get code** 下拉菜单，可以把你�
 | **Create agent notebook** | 包含 Agent 代码的 notebook（MLflow `ResponsesAgent` + 工具 + 注册/部署到 Model Serving） | 阶段 7 |
 | **Export to Databricks Apps**（Recommended） | 把 Agent 导出为 Databricks App 项目（官方推荐的新部署方式） | 阶段 7（了解即可） |
 
+> ⚠️ **挂了工具后，Python API / Curl API 会变灰**：它们只能导出“调用一次模型”的代码，无法复现“模型要求调用工具 → 执行工具 → 结果交回模型”这个循环（练习 5 里 Playground 替你完成了工具执行）。带工具的对话要用 **Create agent notebook** 或 **Export to Databricks Apps** 导出完整 Agent。想导出简单调用代码，先在 **Tools** 里移除工具。
+
 本阶段练习：
-1. 选择 **Qwen3 Next Instruct**，发一句话，点 **Get code → Python API**，对照 `notebooks/01_playground_to_code.py` 和 `00_config.py` 里的 `get_llm_client()`，理解每一行。区别：导出代码从环境变量读令牌（适合在 Databricks 外部运行），项目代码自动使用你的登录身份；
+1. 选择 **Qwen3 Next Instruct**（**不挂工具**），发一句话，点 **Get code → Python API**，对照 `notebooks/01_playground_to_code.py` 和 `00_config.py` 里的 `get_llm_client()`，理解每一行。区别：导出代码从环境变量读令牌（适合在 Databricks 外部运行），项目代码自动使用你的登录身份；
 2. 点 **Get code → Apply on data**，选择 `vehicles` 表，生成一段 `ai_query` SQL，和 notebook 第 6 节手写的 SQL 对比。
 
 ---
