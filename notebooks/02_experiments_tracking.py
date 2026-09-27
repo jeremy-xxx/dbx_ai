@@ -47,29 +47,37 @@ print("experiment_id:", exp.experiment_id)
 
 # COMMAND ----------
 
-# 读取整张表，转成 pandas DataFrame（5000 行，内存放得下）
 df = spark.table(VEHICLES_TABLE).toPandas()
-
-# X = 特征（模型的输入），y = 标签（要预测的答案）
-X = df[MODEL_FEATURES]
-X = X.astype({col: "float64" for col in NUMERIC_FEATURES})  # 整数列转成小数，避免 MLflow 签名告警
+X = df[MODEL_FEATURES].astype({c: "float64" for c in NUMERIC_FEATURES})  # 整型转 float，避免签名告警
 y = df[LABEL]
 
-# 75% 训练、25% 测试；stratify=y 保证两边的故障比例一致；random_state 固定随机种子，每次切分结果相同
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
-print("训练集:", X_train.shape, " 测试集:", X_test.shape, f" 故障样本比例 {y.mean():.1%}")
+print(X_train.shape, X_test.shape, f"故障样本比例 {y.mean():.1%}")
+
+def make_pipeline(estimator) -> Pipeline:
+    pre = ColumnTransformer([
+        ("num", StandardScaler(), NUMERIC_FEATURES),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
+    ])
+    return Pipeline([("pre", pre), ("clf", estimator)])
+
+def evaluate(pipe, threshold: float = 0.5) -> dict:
+    proba = pipe.predict_proba(X_test)[:, 1]
+    pred = (proba >= threshold).astype(int)
+    return {
+        "roc_auc": roc_auc_score(y_test, proba),
+        "pr_auc": average_precision_score(y_test, proba),
+        "recall": recall_score(y_test, pred),
+        "precision": precision_score(y_test, pred, zero_division=0),
+        "f1": f1_score(y_test, pred),
+        "accuracy": accuracy_score(y_test, pred),
+    }
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. autolog：一行代码自动记录
 # MAGIC 运行后打开 Experiments 页面，看看自动记录了哪些东西。
-# MAGIC
-# MAGIC 模型是一条 **Pipeline（流水线）**，数据依次经过两步：
-# MAGIC ```
-# MAGIC "pre"（预处理）：数值列 → StandardScaler 标准化；类别列 → OneHotEncoder 独热编码
-# MAGIC "clf"（分类器）：逻辑回归
-# MAGIC ```
 
 # COMMAND ----------
 
@@ -78,26 +86,11 @@ print("训练集:", X_train.shape, " 测试集:", X_test.shape, f" 故障样本�
 mlflow.sklearn.autolog(log_input_examples=True)
 
 with mlflow.start_run(run_name="autolog_demo_logreg") as run:
-    # 第 1 步：组装流水线
-    pipe = Pipeline([
-        ("pre", ColumnTransformer([
-            ("num", StandardScaler(), NUMERIC_FEATURES),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-        ])),
-        ("clf", LogisticRegression(max_iter=2000)),
-    ])
-
-    # 第 2 步：训练 —— autolog 在这一步自动记录参数、训练集指标、模型
+    pipe = make_pipeline(LogisticRegression(max_iter=2000))
     pipe.fit(X_train, y_train)
+    mlflow.log_metrics({f"test_{k}": v for k, v in evaluate(pipe).items()})
 
-    # 第 3 步：autolog 只记录训练集指标，测试集指标要自己算、自己记
-    proba = pipe.predict_proba(X_test)[:, 1]      # 每辆车“会故障”的概率
-    pred = (proba >= 0.5).astype(int)             # 概率 ≥ 0.5 判为会故障（1），否则 0
-    mlflow.log_metric("test_roc_auc", roc_auc_score(y_test, proba))
-    mlflow.log_metric("test_recall", recall_score(y_test, pred))
-    mlflow.log_metric("test_precision", precision_score(y_test, pred, zero_division=0))
-
-mlflow.sklearn.autolog(disable=True)  # 关闭自动记录，后面改用手动记录
+mlflow.sklearn.autolog(disable=True)  # 后面改用手动记录
 print("run_id:", run.info.run_id)
 
 # COMMAND ----------
@@ -109,72 +102,45 @@ print("run_id:", run.info.run_id)
 
 # COMMAND ----------
 
-# 4 个候选模型：名字 → 模型对象（参数直接写在括号里）
 CANDIDATES = {
-    "logreg":          LogisticRegression(C=1.0, max_iter=2000),
-    "logreg_balanced": LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"),
-    "random_forest":   RandomForestClassifier(n_estimators=300, max_depth=10, class_weight="balanced", random_state=42),
-    "gbdt":            GradientBoostingClassifier(n_estimators=200, learning_rate=0.1, max_depth=3, random_state=42),
+    "logreg": (LogisticRegression, {"C": 1.0, "max_iter": 2000}),
+    "logreg_balanced": (LogisticRegression, {"C": 1.0, "max_iter": 2000, "class_weight": "balanced"}),
+    "random_forest": (RandomForestClassifier, {"n_estimators": 300, "max_depth": 10, "class_weight": "balanced", "random_state": 42}),
+    "gbdt": (GradientBoostingClassifier, {"n_estimators": 200, "learning_rate": 0.1, "max_depth": 3, "random_state": 42}),
 }
 
-for run_name, model in CANDIDATES.items():
-    # 👀 界面：每循环一次，ev-battery-risk 里多一个 Run（名字 = run_name）
-    with mlflow.start_run(run_name=run_name) as run:
+def log_feature_importance(pipe):
+    clf = pipe.named_steps["clf"]
+    if not hasattr(clf, "feature_importances_"):
+        return
+    names = pipe.named_steps["pre"].get_feature_names_out()
+    imp = pd.Series(clf.feature_importances_, index=names).sort_values().tail(12)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    imp.plot.barh(ax=ax)
+    ax.set_title("Feature importance")
+    fig.tight_layout()
+    mlflow.log_figure(fig, "feature_importance.png")
+    plt.close(fig)
 
-        # 第 1 步：组装流水线（预处理 + 当前这个模型）
-        pipe = Pipeline([
-            ("pre", ColumnTransformer([
-                ("num", StandardScaler(), NUMERIC_FEATURES),
-                ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-            ])),
-            ("clf", model),
-        ])
-
-        # 第 2 步：训练
+def train_and_log(run_name: str, estimator_cls, params: dict, nested: bool = False) -> dict:
+    # 👀 界面：每调用一次，ev-battery-risk 里多一个 Run（名字 = run_name）
+    with mlflow.start_run(run_name=run_name, nested=nested) as run:
+        pipe = make_pipeline(estimator_cls(**params))
         pipe.fit(X_train, y_train)
+        metrics = evaluate(pipe)
 
-        # 第 3 步：在测试集上预测
-        proba = pipe.predict_proba(X_test)[:, 1]   # 故障概率
-        pred = (proba >= 0.5).astype(int)          # 0/1 判定
-
-        # 第 4 步：计算指标
-        metrics = {
-            "roc_auc":   roc_auc_score(y_test, proba),
-            "pr_auc":    average_precision_score(y_test, proba),
-            "recall":    recall_score(y_test, pred),
-            "precision": precision_score(y_test, pred, zero_division=0),
-            "f1":        f1_score(y_test, pred),
-            "accuracy":  accuracy_score(y_test, pred),
-        }
-
-        # 第 5 步：记录参数和指标
-        # 👀 界面：Run 详情 → Parameters / Metrics
-        mlflow.log_param("model_type", type(model).__name__)   # 例如 "LogisticRegression"
-        mlflow.log_params(model.get_params())                   # 模型的全部超参数
+        mlflow.log_param("model_type", estimator_cls.__name__)
+        mlflow.log_params(params)
         mlflow.log_metrics(metrics)
 
-        # 第 6 步：画混淆矩阵并保存为图片
         fig, ax = plt.subplots(figsize=(4, 4))
-        ConfusionMatrixDisplay.from_predictions(y_test, pred, ax=ax)
+        ConfusionMatrixDisplay.from_estimator(pipe, X_test, y_test, ax=ax)
         # 👀 界面：Run 详情 → Artifacts 里出现 confusion_matrix.png，点击可预览
         mlflow.log_figure(fig, "confusion_matrix.png")
         plt.close(fig)
+        log_feature_importance(pipe)
 
-        # 第 7 步：树模型才有特征重要性（随机森林、GBDT），逻辑回归跳过
-        if hasattr(model, "feature_importances_"):
-            feature_names = pipe.named_steps["pre"].get_feature_names_out()   # 独热编码后的列名
-            importance = pd.Series(model.feature_importances_, index=feature_names)
-            importance = importance.sort_values().tail(12)                    # 取最重要的 12 个
-            fig, ax = plt.subplots(figsize=(6, 4))
-            importance.plot.barh(ax=ax)
-            ax.set_title("Feature importance")
-            fig.tight_layout()
-            # 👀 界面：Artifacts 里出现 feature_importance.png
-            mlflow.log_figure(fig, "feature_importance.png")
-            plt.close(fig)
-
-        # 第 8 步：保存模型
-        signature = infer_signature(X_train, pipe.predict_proba(X_train.head(5)))   # 记录输入输出的列名和类型
+        signature = infer_signature(X_train, pipe.predict_proba(X_train.head(5)))
         # 👀 界面：Run 详情 → Artifacts 出现 model/ 目录（MLmodel、requirements.txt、input_example.json）；
         #          实验页面的 Models 标签（Logged Models）也会多一条
         mlflow.sklearn.log_model(
@@ -182,61 +148,36 @@ for run_name, model in CANDIDATES.items():
             name="model",                        # MLflow < 3 请改为 artifact_path="model"
             signature=signature,
             input_example=X_train.head(3),
-            pyfunc_predict_fn="predict_proba",   # 部署后调用时返回 [P(正常), P(故障)]，而不是 0/1
+            pyfunc_predict_fn="predict_proba",   # Serving 时返回 [P(正常), P(故障)]
         )
-
-        # 第 9 步：打标签，阶段 3 会按 candidate=true 筛选候选模型
-        mlflow.set_tag("candidate", "true")
-        mlflow.set_tag("stage", "lab-02")
-
-        print(f"{run_name:<16} auc={metrics['roc_auc']:.4f}  recall={metrics['recall']:.3f}  "
+        mlflow.set_tags({"candidate": "true", "stage": "lab-02"})
+        print(f"{run_name:<22} auc={metrics['roc_auc']:.4f} recall={metrics['recall']:.3f} "
               f"precision={metrics['precision']:.3f}  run_id={run.info.run_id}")
+        return metrics
+
+for name, (cls, params) in CANDIDATES.items():
+    train_and_log(name, cls, params)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 4. 嵌套 Run：简单的网格搜索
-# MAGIC 尝试 GBDT 的 2 个学习率 × 2 个树深度 = 4 种组合。
-# MAGIC 一个 **父 Run** 下面挂 4 个 **子 Run**（`nested=True`），界面上可以折叠/展开。
-# MAGIC 这里只关心“哪组超参数更好”，所以子 Run 只记录参数和指标，不保存模型。
 
 # COMMAND ----------
 
 # 👀 界面：出现父 Run “gbdt_grid_search”，点它左侧的 ▶ 展开可看到 4 个子 Run
 with mlflow.start_run(run_name="gbdt_grid_search"):
     best_auc = 0.0
-
-    for learning_rate in [0.05, 0.1]:
-        for max_depth in [2, 3]:
-            child_name = f"gbdt_lr{learning_rate}_d{max_depth}"
-
-            with mlflow.start_run(run_name=child_name, nested=True):   # nested=True → 成为子 Run
-                pipe = Pipeline([
-                    ("pre", ColumnTransformer([
-                        ("num", StandardScaler(), NUMERIC_FEATURES),
-                        ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-                    ])),
-                    ("clf", GradientBoostingClassifier(
-                        n_estimators=200, learning_rate=learning_rate, max_depth=max_depth, random_state=42)),
-                ])
-                pipe.fit(X_train, y_train)
-
-                proba = pipe.predict_proba(X_test)[:, 1]
-                auc = roc_auc_score(y_test, proba)
-                recall = recall_score(y_test, (proba >= 0.5).astype(int))
-
-                mlflow.log_param("learning_rate", learning_rate)
-                mlflow.log_param("max_depth", max_depth)
-                mlflow.log_metric("roc_auc", auc)
-                mlflow.log_metric("recall", recall)
-                print(f"{child_name:<18} auc={auc:.4f}  recall={recall:.3f}")
-
-            if auc > best_auc:
-                best_auc = auc
-
-    # 父 Run 只记录汇总结果
+    for lr in [0.05, 0.1]:
+        for depth in [2, 3]:
+            m = train_and_log(
+                f"gbdt_lr{lr}_d{depth}",
+                GradientBoostingClassifier,
+                {"n_estimators": 200, "learning_rate": lr, "max_depth": depth, "random_state": 42},
+                nested=True,
+            )
+            best_auc = max(best_auc, m["roc_auc"])
     mlflow.log_metric("best_child_roc_auc", best_auc)
-    print(f"最佳子 Run 的 AUC: {best_auc:.4f}")
 
 # COMMAND ----------
 
