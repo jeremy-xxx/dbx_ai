@@ -14,10 +14,10 @@
 ## 3.1 概念
 
 ```
-Experiment 里的 Run ──(register)──►  Registered Model: main.ev_battery_lab.battery_risk_model
-   runs:/<id>/model                     ├── Version 1  ← alias: champion
-                                        ├── Version 2  ← alias: challenger
-                                        └── Version 3
+Run 中保存的模型（Logged Model） ──(register)──►  Registered Model: main.ev_battery_lab.battery_risk_model
+地址：runs:/<run_id>/model                           ├── Version 1  ← alias: champion
+                   └── “model” 是 log_model           ├── Version 2  ← alias: challenger
+                       时自己起的名字                  └── Version 3
 ```
 
 | 概念 | 说明 |
@@ -72,9 +72,16 @@ Registered Model：main.ev_battery_lab.battery_risk_model    1 个注册模型 �
 
 | 写法 | 含义 |
 |---|---|
-| `runs:/<run_id>/model` | 某次 Run 记录的模型 |
+| `runs:/<run_id>/model` | 某次 Run 中保存的模型。`runs:/` 是固定前缀；`<run_id>` 是 Run 的唯一 ID；**最后的 `model` 是保存时自己起的名字**，见下方说明 |
 | `models:/main.ev_battery_lab.battery_risk_model/2` | 注册模型第 2 版 |
 | `models:/main.ev_battery_lab.battery_risk_model@champion` | 别名当前指向的版本 ✅ 推荐下游使用 |
+
+> 💡 **`runs:/<run_id>/model` 里的 `model` 不是固定值**，而是阶段 2 保存模型时自己起的名字：
+> ```python
+> mlflow.sklearn.log_model(sk_model=pipe, name="model", ...)   # ← 这里起的名字
+> ```
+> 如果当时写的是 `name="battery_clf"`，注册时就要写 `runs:/<run_id>/battery_clf`，名字对不上会报“找不到模型”。
+> 本项目统一用 `"model"`（阶段 7 的 Agent 用的是 `"agent"`），这也是 MLflow 示例里最常见的写法，所以容易被误以为是固定值。
 
 ---
 
