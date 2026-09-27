@@ -71,7 +71,7 @@ def ask(question: str, temperature: float, system: str = SYSTEM_PROMPT) -> str:
     return r.choices[0].message.content
 
 q = "车主说最近快充时电池包附近很烫，仪表还亮了黄灯，怎么回复？"
-for t in [0.0, 1.2]:
+for t in [0.0, 1.0]:   # 与 Playground 滑块范围一致（最大 1）
     print(f"========== temperature={t} ==========")
     for i in range(3):
         print(f"[{i + 1}] {ask(q, t)}\n")
