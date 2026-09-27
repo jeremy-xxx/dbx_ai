@@ -2,7 +2,7 @@
 
 > **学习目标**
 > 1. 理解 “Logged Model（实验里的模型）” 与 “Registered Model（注册模型）” 的区别；
-> 2. 会把最佳 Run 注册到 Unity Catalog，并管理版本、描述、标签；
+> 2. 会把最佳 Run 中保存的**模型**注册到 Unity Catalog，并管理版本、描述、标签（Run 本身仍留在实验里，注册的是它产出的模型）；
 > 3. 掌握 **别名（Alias）** 工作流：`champion` / `challenger`；
 > 4. 会用别名加载模型，对整个车队做批量风险打分（pandas & Spark）；
 > 5. 了解模型的权限与血缘。
@@ -42,11 +42,13 @@ Experiment 里的 Run ──(register)──►  Registered Model: main.ev_batte
 
 ## 3.2 代码实践：`03_models_registry.py`
 
-### Step 1：注册
+### Step 1：把 Run 里的模型注册到 UC
 ```python
 mlflow.set_registry_uri("databricks-uc")
 mv = mlflow.register_model(f"runs:/{run_id}/model", BASE_MODEL_NAME)
+#                           └── 模型地址：这次 Run 里名为 "model" 的模型
 ```
+注意区分：**Run** 是一次训练记录，留在 Experiments 里；**注册**的是 Run 产出的**模型**，它在 UC 中成为 `battery_risk_model` 的一个新版本。一个 Run 里的模型可以被注册多次，每次都产生一个新版本。
 
 ### Step 2：补充元数据
 ```python
@@ -62,7 +64,7 @@ client.set_registered_model_alias(BASE_MODEL_NAME, "champion", mv.version)
 ```
 
 ### Step 4：Champion vs Challenger（带业务闸门）
-notebook 先把第二名注册为 Version 1（模拟“线上已有旧模型”），再把最佳模型注册为 `challenger`。
+notebook 先把第二名 Run 的模型注册为 Version 1（模拟“线上已有旧模型”），再把最佳 Run 的模型注册为 Version 2，并设为 `challenger`。
 在 **独立评估集**（这里用车龄最大的 1000 辆车模拟“老化严重的车队”）上比较：
 
 - 主指标：ROC AUC 更高；

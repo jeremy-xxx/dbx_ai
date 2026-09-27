@@ -42,7 +42,7 @@ print("第二名:", second["tags.mlflow.runName"], round(second["metrics.roc_auc
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. 先把“第二名”注册为 Version 1，并设为 champion
+# MAGIC ## 1. 先把“第二名” Run 的模型注册为 Version 1，并设为 champion
 # MAGIC （模拟“线上已有一个旧模型”的场景）
 
 # COMMAND ----------
@@ -69,7 +69,7 @@ print(f"✅ 注册 Version {mv1.version} 并设为 champion")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. 新训练出更好的模型 → 注册为 challenger
+# MAGIC ## 2. 把“第一名” Run 的模型注册为 Version 2，并设为 challenger
 
 # COMMAND ----------
 
