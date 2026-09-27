@@ -105,7 +105,7 @@ display(candidates)
 notices = spark.sql(f"""
 SELECT *,
   ai_query(
-    '{LLM_ENDPOINT}',
+    '{LLM_MODEL}',
     concat(
       '你是电动车公司的售后服务顾问，请给下面的车辆写一条中文进站通知（不超过150字）。\\n',
       '规则：\\n',

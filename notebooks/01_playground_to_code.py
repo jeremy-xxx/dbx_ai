@@ -22,34 +22,27 @@ dbutils.library.restartPython()
 # MAGIC ## 1. 找到可用的基础模型
 # MAGIC 2026-09 起，基础模型统一由 **Unity Gateway** 提供，模型注册在 Unity Catalog 的 `system.ai` 下：
 # MAGIC - 在左侧 **Unity Gateway → Models** 中浏览可调用的模型（名称形如 `system.ai.qwen3-next-80b-a3b-instruct`），点开模型的 **Metrics** 标签可看到调用记录；
-# MAGIC - 旧版 `databricks-*` 端点仍可通过 Serving 页面顶部的 “legacy experience” 访问，对应 `00_config` 中 `LLM_MODE = "legacy"`。
+# MAGIC - 注意：Catalog → system → ai 的 **Models** 标签是模型“登记册”，列出来不代表能调用；以 Unity Gateway 页面为准。
 # MAGIC
-# MAGIC 下面发一个最小请求，验证 `00_config` 里配置的模型可用。
+# MAGIC 本项目使用的模型由 `00_config` 中的 `LLM_MODEL` 决定：
 
 # COMMAND ----------
 
-from databricks.sdk import WorkspaceClient
-
-w = WorkspaceClient()
-print("LLM_MODE:", LLM_MODE, "| model:", LLM_ENDPOINT)
-if LLM_MODE == "legacy":
-    print("可用的旧版基础模型端点:",
-          sorted(e.name for e in w.serving_endpoints.list() if e.name.startswith("databricks-")))
+print("LLM_MODEL:", LLM_MODEL)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. OpenAI 兼容客户端
-# MAGIC `get_llm_client()`（定义在 `00_config`）返回一个配置好 `base_url` 和鉴权的 `openai.OpenAI` 对象：
-# MAGIC - gateway 模式：`https://<workspace>/ai-gateway/mlflow/v1`
-# MAGIC - legacy 模式：`https://<workspace>/serving-endpoints`
+# MAGIC `get_llm_client()`（定义在 `00_config`）返回一个 `openai.OpenAI` 对象，
+# MAGIC 地址已设为 `https://<workspace>/ai-gateway/mlflow/v1`，鉴权用你当前的登录身份。
 
 # COMMAND ----------
 
 client = get_llm_client()
 
 resp = client.chat.completions.create(
-    model=LLM_ENDPOINT,
+    model=LLM_MODEL,
     messages=[{"role": "user", "content": "用通俗的语言解释什么是动力电池的 SOH（健康度），以及 LFP 和 NMC 电池在寿命上的区别。"}],
     max_tokens=400,
 )
@@ -70,7 +63,7 @@ SYSTEM_PROMPT = """你是一家电动车公司的资深电池售后工程师。�
 
 def ask(question: str, temperature: float, system: str = SYSTEM_PROMPT) -> str:
     r = client.chat.completions.create(
-        model=LLM_ENDPOINT,
+        model=LLM_MODEL,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": question}],
         temperature=temperature,
         max_tokens=300,
@@ -109,7 +102,7 @@ def classify_feedback(text: str) -> dict:
         '"safety_risk": "none|low|high", "needs_inspection": true|false, "reason": "..."}\n'
         f"反馈：{text}"
     )
-    kwargs = dict(model=LLM_ENDPOINT, messages=[{"role": "user", "content": prompt}], temperature=0)
+    kwargs = dict(model=LLM_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0)
     try:
         r = client.chat.completions.create(**kwargs, response_format={"type": "json_object"})
     except Exception:
@@ -154,7 +147,7 @@ print("✅ 已生成 Trace，去 Experiments 页面看看")
 display(spark.sql(f"""
 SELECT vehicle_id, vehicle_model, battery_chemistry, soh_pct, fast_charge_ratio, max_cell_temp_c_30d,
        ai_query(
-         '{LLM_ENDPOINT}',
+         '{LLM_MODEL}',
          concat('你是电池售后工程师。用一句中文（不超过40字）点评这块动力电池的状态：',
                 to_json(named_struct('model', vehicle_model, 'chemistry', battery_chemistry,
                                      'age_months', vehicle_age_months, 'soh_pct', soh_pct,
@@ -172,6 +165,6 @@ LIMIT 5
 # MAGIC %md
 # MAGIC ## ✍️ 练习
 # MAGIC 1. 修改 `SYSTEM_PROMPT`，让模型用“表格”形式给出：现象 / 可能原因 / 建议。
-# MAGIC 2. 换 2 个不同的 `LLM_ENDPOINT`，对 `classify_feedback` 各跑 10 次，统计 JSON 解析成功率，
+# MAGIC 2. 换 2 个不同的 `LLM_MODEL`，对 `classify_feedback` 各跑 10 次，统计 JSON 解析成功率，
 # MAGIC    以及“焦糊味、冒烟”那条是否 **每次** 都被判为 `safety_risk=high`（安全场景不能有漏判）。
 # MAGIC 3. 在 Trace 页面比较两个模型的平均延迟和 token 数。

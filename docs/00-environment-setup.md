@@ -54,9 +54,7 @@ main                              ← catalog（目录）
 ```python
 CATALOG = "main"              # 改成你有权限的 catalog
 SCHEMA  = "ev_battery_lab"    # 可以不改
-LLM_MODE = "gateway"                                            # 默认：新版 Unity Gateway（推荐学习）
-LLM_MODEL_GATEWAY = "system.ai.qwen3-next-80b-a3b-instruct"     # 通义千问：中文好、支持工具调用（Free Edition 实测可用）
-LLM_ENDPOINT_LEGACY = "databricks-meta-llama-3-3-70b-instruct"  # 仅 LLM_MODE = "legacy" 时使用（备用）
+LLM_MODEL = "system.ai.qwen3-next-80b-a3b-instruct"   # 通过 Unity Gateway 调用的大模型（通义千问：中文好、支持工具调用）
 ```
 
 **怎么选模型**：打开左侧 **AI/ML → Unity Gateway → Models**，Location 为 `system.ai` 的就是可调用的模型服务，名字填 `system.ai.<服务名>`。选模型的三个条件：
@@ -74,7 +72,7 @@ Serving 页面顶部如果有横幅 “Foundation model serving has moved to Uni
 - 基础模型注册在 Unity Catalog 的 `system.ai` 下，通过 `https://<workspace>/ai-gateway/mlflow/v1` 这个 OpenAI 兼容地址调用。
 - 原来的 **AI Gateway** 更名为 **Unity Gateway**，成为统一管理模型、Agent、MCP 的控制台。
 
-本项目的代码已兼容两种方式：`LLM_MODE = "gateway"`（默认，推荐）或 `"legacy"`（通过横幅里的 legacy experience 仍可使用旧的 `databricks-*` 端点，作为备用）。
+本项目只使用 Unity Gateway 方式调用大模型。
 
 如果是 **多人共享的 workspace**，端点名称是全 workspace 唯一的，`00_config.py` 已经自动给端点名加了你的用户名前缀，避免冲突。
 
@@ -87,7 +85,7 @@ Serving 页面顶部如果有横幅 “Foundation model serving has moved to Uni
 | # | 做了什么 | 对应代码 | 影响 |
 |---|---|---|---|
 | 1 | **定义变量**：catalog、schema、表名、模型名、端点名、实验路径、特征列、安全红线阈值等 | `VEHICLES_TABLE = f"{CATALOG}.{SCHEMA}.vehicles"` 等 | 所有 notebook 用同一套名字，改一处全局生效 |
-| 2 | **定义公共函数** `get_llm_client()` | 按 `LLM_MODE` 返回指向旧版端点或 Unity Gateway 的 OpenAI 客户端 | 阶段 1、7、8 调大模型都用它，切换模式不用改其它代码 |
+| 2 | **定义公共函数** `get_llm_client()` | 返回指向 Unity Gateway 的 OpenAI 兼容客户端（地址和鉴权已配好） | 阶段 1、7、8 调大模型都用它 |
 | 3 | **创建 schema（如果不存在）** 并设为当前默认库 | `CREATE SCHEMA IF NOT EXISTS` + `USE CATALOG / USE SCHEMA` | 第一次运行会在 Catalog 里建出 `ev_battery_lab`；之后重复运行 **不会重复创建，也不会删除任何数据** |
 | 4 | **打印当前配置** | 最后的 `print(...)` | 让你一眼确认 schema、模型、端点名是否正确 |
 
@@ -102,7 +100,7 @@ Serving 页面顶部如果有横幅 “Foundation model serving has moved to Uni
 几个容易误解的点：
 - **变量不会“保存”下来**：每个 notebook 有自己独立的 Python 会话，在 `00_config` 里运行得到的变量，别的 notebook 看不到。所以每个 notebook 都要自己 `%run ./00_config`，而不是“先跑一次 00_config，别的 notebook 就能用了”。
 - **`%run` 必须单独占一个单元格**，并且要放在 `%pip install` 和 `dbutils.library.restartPython()` **之后**，否则重启 Python 会把刚加载的变量清掉。
-- **改配置只改这一个文件**：比如想换大模型，只改 `LLM_MODE` / `LLM_ENDPOINT_LEGACY`，其它 notebook 下次运行时自动生效。
+- **改配置只改这一个文件**：比如想换大模型，只改 `LLM_MODEL`，其它 notebook 下次运行时自动生效。
 - 它需要计算资源（会执行 SQL），所以运行前要连上 Serverless 或集群。
 
 ## 0.5 生成数据
@@ -135,6 +133,6 @@ SELECT * FROM vehicles WHERE max_cell_temp_c_30d >= 60 OR cell_voltage_imbalance
 - [ ] **Catalog** 里能看到 `你的catalog.ev_battery_lab.vehicles`
 - [ ] 打开表 → **Sample Data** 能看到数据，**Columns** 里能看到字段注释
 - [ ] 上面 3 条 SQL 能跑通，并对“物流车风险更高、快充越多风险越高”有直观认识
-- [ ] **Unity Gateway → Models** 页面能找到 `LLM_MODEL_GATEWAY` 配置的模型（legacy 模式则是 Serving 的 legacy 页面里有 `databricks-*` 端点）
+- [ ] **Unity Gateway → Models** 页面能找到 `LLM_MODEL` 配置的模型
 
 全部打勾，进入 [阶段 1：Playground](01-playground.md)。

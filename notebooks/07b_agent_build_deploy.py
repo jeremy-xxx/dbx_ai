@@ -34,8 +34,7 @@ dbutils.library.restartPython()
 import yaml
 
 agent_config = {
-    "llm_endpoint": LLM_ENDPOINT,
-    "llm_mode": LLM_MODE,
+    "llm_model": LLM_MODEL,
     "risk_endpoint": RISK_ENDPOINT,
     "fn_profile": FN_PROFILE,
     "fn_features": FN_FEATURES,
@@ -163,11 +162,8 @@ display(results.metrics)
 
 from mlflow.models.resources import DatabricksFunction, DatabricksServingEndpoint, DatabricksTable
 
-# legacy 模式的 LLM 是 serving 端点，需要声明；gateway 模式的 system.ai.* 模型不是 serving 端点，不能用 DatabricksServingEndpoint 声明
-llm_resources = [DatabricksServingEndpoint(endpoint_name=LLM_ENDPOINT)] if LLM_MODE == "legacy" else []
-
+# 注意：LLM（system.ai.* 模型服务）不是 serving 端点，不能用 DatabricksServingEndpoint 声明
 resources = [
-    *llm_resources,
     DatabricksServingEndpoint(endpoint_name=RISK_ENDPOINT),
     *[DatabricksFunction(function_name=fn) for fn in [FN_PROFILE, FN_FEATURES, FN_ACTIONS, FN_POLICY]],
     *[DatabricksTable(table_name=t) for t in [VEHICLES_TABLE, FEATURE_TABLE, ACTIONS_TABLE, POLICY_TABLE]],
@@ -224,11 +220,9 @@ print(f"✅ {AGENT_MODEL_NAME} Version {mv.version}")
 # MAGIC
 # MAGIC 需要约 15 分钟。
 # MAGIC
-# MAGIC ⚠️ **关于 Unity Gateway（2026-09 的平台变化）**：本地测试（② ③）两种模式都能用。
+# MAGIC ⚠️ **关于 Unity Gateway 鉴权**：本地测试（② ③）用的是你本人的凭证，已验证可用。
 # MAGIC 部署到 Model Serving 后，Agent 用自动鉴权透传的短期凭证访问资源；该凭证能否调用 Unity Gateway 的 `system.ai.*` 模型取决于你的 workspace 设置。
-# MAGIC 如果部署后调用报 401/403：
-# MAGIC 1. 最简单：`00_config` 改 `LLM_MODE = "legacy"`，重新运行 ① ④ ⑥ ⑦；
-# MAGIC 2. 或按官方推荐把 Agent 部署到 **Databricks Apps**（文档 7.7 有说明）。
+# MAGIC 如果部署后调用 LLM 报 401/403，按官方推荐把 Agent 部署到 **Databricks Apps**（文档 7.7 有说明）。
 
 # COMMAND ----------
 
@@ -258,6 +252,6 @@ print(r.output_text if hasattr(r, "output_text") else r)
 
 # MAGIC %md
 # MAGIC ## ✍️ 练习
-# MAGIC 1. 把 `LLM_ENDPOINT` 换成另一个模型，重跑 ③，比较两个模型的评估得分 —— 用数据选模型。
+# MAGIC 1. 把 `LLM_MODEL` 换成另一个模型，重跑 ③，比较两个模型的评估得分 —— 用数据选模型。
 # MAGIC 2. 新增工具 `get_fleet_summary(owner_name)`（UC 函数：某车队所有车辆的风险概况），并加入评估集。
 # MAGIC 3. 把 Review App 链接发给同事，让他们提问并打分；然后在 Experiments 中查看收集到的反馈。

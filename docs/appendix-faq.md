@@ -5,14 +5,14 @@
 | 看不到 | 可能原因 | 处理 |
 |---|---|---|
 | 侧边栏没有 AI/ML 区域 | 工作区 persona 或权限设置 | 左上角切换到 “Machine Learning” 视图，或联系管理员 |
-| Serving 页面没有 `databricks-` 基础模型端点 | **2026-09 起基础模型迁移到 Unity Gateway**（页面顶部有横幅提示） | 去 **Catalog → system → ai** 查看模型，`00_config` 用 `LLM_MODE = "gateway"`；需要旧端点可点横幅中的 legacy experience，并设 `LLM_MODE = "legacy"` |
-| Catalog 里也没有 `system.ai` 模型 | 区域不支持 Unity Gateway / 无查询权限 / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
+| Serving 页面没有 `databricks-` 基础模型端点 | **2026-09 起基础模型迁移到 Unity Gateway**（页面顶部有横幅提示） | 正常现象。去 **AI/ML → Unity Gateway → Models** 查看可调用的模型，填到 `00_config` 的 `LLM_MODEL` |
+| Unity Gateway 里没有聊天模型 | 区域不支持 / 无查询权限 / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
 | Agents 页面没有 Agent Bricks 模板 | 区域/版本未开放、未启用 Serverless、Beta 功能未开启 | 管理员在 **Previews** 中启用；否则跳过 7.2，代码 Agent 不受影响 |
 | AI Gateway 页面为空 | 还没有给任何端点配置网关 | 完成阶段 5 后再看 |
 | Features 页面找不到特征表 | 表没有主键约束 | 必须通过 `fe.create_table` 或带 `PRIMARY KEY` 的建表语句创建 |
 
 ### 模型可用性测试
-不确定该用哪种模式、哪个模型时，新建 notebook 运行（不依赖 `00_config`）：
+想换模型时，先新建 notebook 运行下面的测试（不依赖 `00_config`）：
 
 ```python
 %pip install -q openai
@@ -27,20 +27,15 @@ from databricks.sdk import WorkspaceClient
 from openai import OpenAI
 
 w = WorkspaceClient()
-legacy = w.serving_endpoints.get_open_ai_client()
 token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
-gateway = OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
+client = OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
 
 tools = [{"type": "function", "function": {
     "name": "get_vehicle_profile", "description": "根据车辆ID查询车辆档案",
     "parameters": {"type": "object", "properties": {"vehicle_id": {"type": "string"}}, "required": ["vehicle_id"]}}}]
 
-for mode, client, model in [
-    ("gateway", gateway, "system.ai.qwen3-next-80b-a3b-instruct"),
-    ("gateway", gateway, "system.ai.llama-4-maverick"),
-    ("legacy",  legacy,  "databricks-meta-llama-3-3-70b-instruct"),
-]:
-    print(f"===== [{mode}] {model}")
+for model in ["system.ai.qwen3-next-80b-a3b-instruct", "system.ai.llama-4-maverick"]:
+    print(f"===== {model}")
     try:
         r = client.chat.completions.create(model=model, max_tokens=60,
             messages=[{"role": "user", "content": "用一句话介绍你自己"}])
@@ -55,18 +50,16 @@ for mode, client, model in [
 
 **Free Edition 实测结果（2026-09）**：
 
-| 通道 | 模型 | 聊天 | 工具调用 | 备注 |
-|---|---|---|---|---|
-| gateway | `system.ai.qwen3-next-80b-a3b-instruct` | ✅ | ✅ | **默认**，中文最好 |
-| gateway | `system.ai.llama-4-maverick` | ✅ | ✅ | 备选 |
-| gateway | `system.ai.qwen35-122b-a10b` | ⚠️ 推理块格式 | ✅ | 推理模型，不建议 |
-| legacy | `databricks-meta-llama-3-3-70b-instruct` | ✅ | — | 备用（Agent 部署鉴权失败时） |
-| legacy | `databricks-gpt-oss-120b` | ⚠️ 推理块格式 | — | 推理模型，不建议 |
-| 两者 | Claude 系列 | ❌ 404 | — | Free Edition 未开放 |
+| 模型 | 聊天 | 工具调用 | 备注 |
+|---|---|---|---|
+| `system.ai.qwen3-next-80b-a3b-instruct` | ✅ | ✅ | **默认**，中文最好 |
+| `system.ai.llama-4-maverick` | ✅ | ✅ | 备选 |
+| `system.ai.qwen35-122b-a10b` | ⚠️ 推理块格式 | ✅ | 推理模型，不建议 |
+| Claude 系列 | ❌ 404 | — | Free Edition 未开放 |
 
 | 现象 | 说明 |
 |---|---|
-| `DeprecationWarning: get_open_ai_client() is deprecated` | 只是提示，功能正常。官方建议今后改用 `databricks-openai` 包的 `DatabricksOpenAI`，本项目为兼容性暂保留 |
+| `DeprecationWarning: get_open_ai_client() is deprecated` | 调用 **自己部署的 Serving 端点**（外部模型端点、Agent 端点）时可能出现，只是提示，功能正常。官方建议今后改用 `databricks-openai` 包的 `DatabricksOpenAI` |
 | 返回内容是 `[{'type': 'reasoning', ...}]` 而不是文字 | 推理类模型（如 gpt-oss、qwen35）的返回格式。换非推理模型即可；`agent.py` 里的 `as_text()` 也会自动只取最终文字 |
 | `system.ai.xxx` 报 404 “does not exist” | 这个名字只在 Catalog 的 **Models（登记册）** 里，没有开放成服务。以 **Unity Gateway → Models** 页面列出的为准 |
 

@@ -10,7 +10,7 @@
 # MAGIC | 变量 | 含义 |
 # MAGIC |---|---|
 # MAGIC | `CATALOG` / `SCHEMA` | 本项目所有表、模型、函数、Volume 所在位置 |
-# MAGIC | `LLM_MODE` / `LLM_ENDPOINT` | 大模型调用方式与模型名（Unity Gateway 的 `system.ai.*`，或旧版 `databricks-*` 端点） |
+# MAGIC | `LLM_MODEL` | 大模型名（Unity Gateway 中的 `system.ai.*` 模型服务，需支持 tool calling） |
 # MAGIC | `RISK_ENDPOINT` | 阶段 4 部署的电池风险模型端点名 |
 
 # COMMAND ----------
@@ -21,32 +21,21 @@ import re
 CATALOG = "main"        # ← 改成你有 CREATE SCHEMA 权限的 catalog（Free Edition 常见为 "workspace"）
 SCHEMA = "ev_battery_lab"
 
-# 基础大模型（按 token 计费，需支持 function/tool calling）。两种调用方式：
-#   "gateway"：Unity Gateway（2026-09 起的新方式）。模型注册在 UC 的 system.ai 下，
-#              去 AI/ML → Unity Gateway → Models 查看可调用模型，名称形如 system.ai.qwen3-next-80b-a3b-instruct
-#   "legacy" ：旧版 Foundation Model 端点，名称形如 databricks-meta-llama-3-3-70b-instruct
-#              （Serving 页面顶部横幅里的 “legacy experience” 可以看到）
+# 基础大模型，通过 Unity Gateway 调用（按 token 计费，需支持 function/tool calling）。
+# 可用模型：左侧 AI/ML → Unity Gateway → Models（Location 为 system.ai 的那些），名字填 system.ai.<服务名>
 # Free Edition 实测（2026-09）：
-#   gateway ✅ system.ai.qwen3-next-80b-a3b-instruct（中文好、支持工具调用、返回纯文本）← 默认
-#   gateway ✅ system.ai.llama-4-maverick（备选）
-#   legacy  ✅ databricks-meta-llama-3-3-70b-instruct（Agent 部署到 Model Serving 后若 gateway 鉴权失败，切回它）
-#   ⚠️ 推理类模型（gpt-oss、qwen35-122b-a10b）返回“推理块列表”而非纯文本，不建议选；Claude 系列在 Free Edition 不可用
-# 可用的 gateway 模型：左侧 AI/ML → Unity Gateway → Models（Location 为 system.ai 的那些）
-LLM_MODE = "gateway"
-LLM_MODEL_GATEWAY = "system.ai.qwen3-next-80b-a3b-instruct"
-LLM_ENDPOINT_LEGACY = "databricks-meta-llama-3-3-70b-instruct"
+#   ✅ system.ai.qwen3-next-80b-a3b-instruct（中文好、支持工具调用、返回纯文本）← 默认
+#   ✅ system.ai.llama-4-maverick（备选）
+#   ⚠️ 推理类模型（gpt-oss、qwen35-122b-a10b）返回“推理块列表”而非纯文本，不建议选
+# 这个名字同时用于 chat 调用、ai_query 和 Agent
+LLM_MODEL = "system.ai.qwen3-next-80b-a3b-instruct"
 # ==================================
 
-# 后续所有 notebook 统一使用 LLM_ENDPOINT 作为 model 名（chat 调用和 ai_query 都适用）
-LLM_ENDPOINT = LLM_MODEL_GATEWAY if LLM_MODE == "gateway" else LLM_ENDPOINT_LEGACY
-
 def get_llm_client():
-    """返回一个 OpenAI 兼容客户端，按 LLM_MODE 指向 Unity Gateway 或旧版 serving-endpoints。"""
+    """返回一个指向 Unity Gateway 的 OpenAI 兼容客户端（地址与鉴权已配置好）。"""
     from databricks.sdk import WorkspaceClient
-    w = WorkspaceClient()
-    if LLM_MODE == "legacy":
-        return w.serving_endpoints.get_open_ai_client()
     from openai import OpenAI
+    w = WorkspaceClient()
     token = w.config.authenticate()["Authorization"].split(" ", 1)[1]
     return OpenAI(api_key=token, base_url=f"{w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
 
@@ -115,7 +104,6 @@ spark.sql(f"USE SCHEMA {SCHEMA}")
 print(f"""配置已加载
   user            = {USER}
   schema          = {CATALOG}.{SCHEMA}
-  LLM_MODE        = {LLM_MODE}
-  LLM_ENDPOINT    = {LLM_ENDPOINT}
+  LLM_MODEL       = {LLM_MODEL}
   RISK_ENDPOINT   = {RISK_ENDPOINT}
   EXPERIMENT_PATH = {EXPERIMENT_PATH}""")

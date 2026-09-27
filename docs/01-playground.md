@@ -16,7 +16,7 @@ Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上�
 
 | 类别 | 例子 | 计费 | 在哪里看到 |
 |---|---|---|---|
-| **Databricks 提供的基础模型（按 token）** | `system.ai.qwen3-next-80b-a3b-instruct`、`system.ai.llama-4-maverick` 等（可用列表见 Unity Gateway → Models）（旧版名称 `databricks-*`） | 按输入/输出 token | **Catalog → system → ai**（2026-09 起由 Unity Gateway 提供，不再列在 Serving 页面） |
+| **Databricks 提供的基础模型（按 token）** | `system.ai.qwen3-next-80b-a3b-instruct`、`system.ai.llama-4-maverick` 等（可用列表见 Unity Gateway → Models） | 按输入/输出 token | **Unity Gateway → Models**（2026-09 起不再列在 Serving 页面） |
 | **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
 | **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
 
@@ -90,7 +90,7 @@ Playground 支持给模型添加 **Tools**（Unity Catalog 函数、Vector Searc
 
 | 小节 | 你会学到 |
 |---|---|
-| 1. 确认可用模型 | Catalog 中的 `system.ai.*`（gateway 模式）或旧版 `databricks-*` 端点 |
+| 1. 确认可用模型 | Unity Gateway → Models 中的 `system.ai.*` 模型服务 |
 | 2. OpenAI 兼容客户端 | `get_llm_client()`（定义在 `00_config`），自动处理地址与鉴权 |
 | 3. System prompt + temperature 实验 | 与 Playground 练习 2、3 对应 |
 | 4. 结构化 JSON 输出：车主反馈分类 | `response_format` 与“解析失败兜底” |
@@ -115,8 +115,6 @@ resp = client.chat.completions.create(
 ```
 
 - 这是 **统一的 OpenAI 兼容接口**：换成 GPT、Gemini 等其他厂商的模型只需改 `model`，代码不变。所以 **任何支持 OpenAI SDK 的框架**（LangChain、LlamaIndex、DSPy…）都能直接接 Databricks 模型。
-- 旧版方式：`w.serving_endpoints.get_open_ai_client()`，`base_url` 为 `https://<workspace>/serving-endpoints`，`model` 填 `databricks-*` 端点名。
-
 ```sql
 SELECT vehicle_id,
        ai_query('system.ai.qwen3-next-80b-a3b-instruct',
@@ -141,7 +139,7 @@ FROM vehicles LIMIT 5
 | 现象 | 原因 / 解决 |
 |---|---|
 | Serving 页面找不到 `databricks-` 模型 | 正常：2026-09 起基础模型迁移到 Unity Gateway，去 **Catalog → system → ai** 查看 |
-| 调用报 `model not found` / 404 | `LLM_MODEL_GATEWAY` 名称写错或该区域没有此模型；在 `system.ai` 里挑一个存在的；或改 `LLM_MODE = "legacy"` |
+| 调用报 `model not found` / 404 | `LLM_MODEL` 名称写错或该区域没有此模型；以 **Unity Gateway → Models** 页面列出的模型为准（Catalog 的 Models 登记册里的名字不一定能调用） |
 | 调用报 403 | 需要 workspace 的 Unity Gateway 查询权限（Workspace access 权限），联系管理员 |
 | `ai_query` 报错不支持 | 需要 Serverless / SQL Warehouse / DBR 15.4+ |
 | JSON 偶尔解析失败 | 降低 temperature；使用 `response_format`；代码中加 try/except 兜底 |

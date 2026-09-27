@@ -30,8 +30,7 @@ mlflow.openai.autolog()  # 每次 LLM 调用自动生成 Trace span
 # 配置：开发时读取同目录的 agent_config.yaml；部署时由 log_model(model_config=...) 注入
 # ---------------------------------------------------------------------------
 config = ModelConfig(development_config="agent_config.yaml")
-LLM_ENDPOINT = config.get("llm_endpoint")
-LLM_MODE = config.get("llm_mode")  # "gateway"（Unity Gateway, system.ai.*）或 "legacy"（databricks-* 端点）
+LLM_MODEL = config.get("llm_model")  # Unity Gateway 模型服务，如 system.ai.qwen3-next-80b-a3b-instruct
 RISK_ENDPOINT = config.get("risk_endpoint")
 FN_PROFILE = config.get("fn_profile")
 FN_FEATURES = config.get("fn_features")
@@ -144,9 +143,7 @@ class BatteryServiceAgent(ResponsesAgent):
         self.uc = DatabricksFunctionClient()
 
     def _llm(self):
-        """每次调用时创建客户端：部署后凭证会轮换，缓存的 token 可能过期。"""
-        if LLM_MODE == "legacy":
-            return self.w.serving_endpoints.get_open_ai_client()
+        """创建指向 Unity Gateway 的客户端。每次请求都新建：部署后凭证会轮换，缓存的 token 可能过期。"""
         from openai import OpenAI
         token = self.w.config.authenticate()["Authorization"].split(" ", 1)[1]
         return OpenAI(api_key=token, base_url=f"{self.w.config.host.rstrip('/')}/ai-gateway/mlflow/v1")
@@ -200,7 +197,7 @@ class BatteryServiceAgent(ResponsesAgent):
         llm = self._llm()
         for _ in range(MAX_STEPS):
             resp = llm.chat.completions.create(
-                model=LLM_ENDPOINT, messages=messages, tools=TOOLS, temperature=0.1)
+                model=LLM_MODEL, messages=messages, tools=TOOLS, temperature=0.1)
             msg = resp.choices[0].message
 
             if not msg.tool_calls:  # 模型不再调用工具 → 最终回答

@@ -170,7 +170,7 @@ print("value:", res.value, "\nerror:", res.error)
 
 # MAGIC %md
 # MAGIC ## 5. 👉 去 Playground 试试！
-# MAGIC 1. 打开 **AI/ML → Playground**，选择 `LLM_ENDPOINT` 对应的模型；
+# MAGIC 1. 打开 **AI/ML → Playground**，选择 `LLM_MODEL` 对应的模型；
 # MAGIC 2. **Tools → Add tool → Unity Catalog function**，添加 `get_vehicle_profile`、`get_maintenance_actions`、`get_policy_doc`；
 # MAGIC 3. System prompt 填：`你是电池售后助手。回答前先用工具查询车辆档案和公司规程，用中文回答。`
 # MAGIC 4. 问（把 ID 换成上面打印的红线车辆）：`车辆 V0xxxx 现在什么状况？在质保内吗？应该怎么处理？`
