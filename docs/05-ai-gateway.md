@@ -134,10 +134,24 @@ GROUP BY u.requester
 | **Skills** | 可复用的 Agent 技能 |
 | **Agents** | 编码 Agent 的接入与用量 |
 
+点进任意模型，详情页有这些标签：
+
+| 标签 | 用途 |
+|---|---|
+| **Overview** | Get started：调用示例（cURL / Python）和访问令牌生成 |
+| **Routing** | 请求路由与回退（Fallback）配置 |
+| **Metrics** | 请求数、token 用量、延迟随时间变化 |
+| **Permissions** | 谁可以调用这个模型 |
+| **Lineage** | 哪些 notebook、Job、Agent 调用了它 |
+| **Budgets** | 预算上限，控制花费 |
+| **Policies**（Beta） | 护栏等治理策略 |
+
+> 左侧菜单仍显示 **AI Gateway**，页面标题是 **Unity Gateway**，两者是同一个东西（改名过渡期）。
+
 **实操**：
 1. 运行完阶段 1 的 notebook 后，回到 **Unity Gateway → Models**，找到 `qwen3-next-80b-a3b-instruct`，**Total tokens (7d)** 应该从 0 变成几千；
-2. 点进这个模型，查看 **Metrics**：请求数、token、延迟随时间的变化；
-3. 查看模型详情中能否配置 **限流 / 预算 / 护栏**（Free Edition 可能只读），和 5.2 中给自定义端点配置网关对比；
+2. 点进这个模型，查看 **Metrics**：请求数、token、延迟随时间的变化；查看 **Lineage**：能否看到你的 notebook；
+3. 查看 **Budgets** 和 **Policies** 能否配置预算与护栏（Free Edition 可能只读），和 5.2 中给自定义端点配置网关对比；
 4. 用 SQL 查询基础模型的用量系统表（需要系统表访问权限）：
    ```sql
    SELECT * FROM system.ai_gateway.usage ORDER BY 1 DESC LIMIT 20

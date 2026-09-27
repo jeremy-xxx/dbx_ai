@@ -114,6 +114,10 @@ resp = client.chat.completions.create(
 )
 ```
 
+> 📍 **在 Databricks 界面里确认地址**：左侧 **AI Gateway**（页面标题显示为 Unity Gateway）→ **Models** → 点任意模型 → **Overview → Get started**，里面有 cURL / Python 示例，地址就是 `https://<你的workspace>/ai-gateway/mlflow/v1/...`，模型名是 `system.ai.<服务名>`。
+> - 示例用的是 `/responses`（OpenAI Responses 接口），本项目用的是 `/chat/completions`（聊天接口），两者都在 `/ai-gateway/mlflow/v1` 下；
+> - 页面上的 **Generate Access Token** 用于在 Databricks **外部**（如本地电脑）调用；在 notebook 里用 `get_llm_client()` 会自动使用你的登录身份，不需要生成令牌。
+
 - 这是 **统一的 OpenAI 兼容接口**：换成 GPT、Gemini 等其他厂商的模型只需改 `model`，代码不变。所以 **任何支持 OpenAI SDK 的框架**（LangChain、LlamaIndex、DSPy…）都能直接接 Databricks 模型。
 ```sql
 SELECT vehicle_id,
