@@ -53,6 +53,7 @@ BATCH_FILES = {
 dbutils.widgets.text("batches", ",".join(BATCH_FILES), "要处理的批次（逗号分隔）")
 BATCHES = [b.strip() for b in dbutils.widgets.get("batches").split(",") if b.strip()]
 
+# 👀 界面：Catalog → main → ev_battery_lab → Volumes 出现 raw_battery_data；下载完成后能看到 .mat 文件及大小
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {RAW_VOLUME} COMMENT '原始电池循环数据（Severson et al. 2019, CC BY 4.0）'")
 
 def download(url: str, dest: str, chunk_mb: int = 16) -> None:
@@ -192,6 +193,7 @@ print("循环寿命范围:", meta.cycle_life.min(), "–", meta.cycle_life.max()
 
 keep = set(meta.cell_id)
 
+# 👀 界面：Tables 出现 cell_metadata / cell_cycle_summary / cell_early_curves 三张表
 (spark.createDataFrame(meta)
     .write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(CELL_META_TABLE))
 

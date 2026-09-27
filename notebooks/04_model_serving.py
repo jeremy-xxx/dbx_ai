@@ -28,6 +28,7 @@ from databricks.sdk.errors import NotFound
 from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntityInput
 from mlflow import MlflowClient
 
+# （界面无变化）用于按别名查询 UC 中的模型版本
 mlflow.set_registry_uri("databricks-uc")
 w = WorkspaceClient()
 champion_version = MlflowClient().get_model_version_by_alias(BASE_MODEL_NAME, "champion").version
@@ -52,10 +53,13 @@ served = [ServedEntityInput(
 try:
     w.serving_endpoints.get(RISK_ENDPOINT)
     print("端点已存在 → 更新配置")
+    # 👀 界面：Serving 页面该端点状态变为 Updating，完成后回到 Ready
     w.serving_endpoints.update_config_and_wait(
         name=RISK_ENDPOINT, served_entities=served, timeout=timedelta(minutes=40))
 except NotFound:
     print("创建新端点 …")
+    # 👀 界面：Serving 页面出现 <你的用户名>-battery-risk 端点，状态 Not Ready → Ready（10–20 分钟）；
+    #          等待时可点进端点 → Logs → Build logs 看构建过程
     w.serving_endpoints.create_and_wait(
         name=RISK_ENDPOINT,
         config=EndpointCoreConfigInput(served_entities=served),
@@ -85,6 +89,7 @@ records = [
      "vehicle_model": "city_ev", "battery_chemistry": "LFP", "climate_zone": "temperate"},
 ]
 
+# 👀 界面：端点页面 → Metrics 的请求数增加（有 1–2 分钟延迟）
 resp = w.serving_endpoints.query(name=RISK_ENDPOINT, dataframe_records=records)
 for r, p in zip(records, resp.predictions):
     print(f"{r['vehicle_model']:<15} SOH={r['soh_pct']:>5}  → 90 天故障概率 {p[1]:.1%}")

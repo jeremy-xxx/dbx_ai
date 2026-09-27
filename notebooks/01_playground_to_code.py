@@ -128,7 +128,10 @@ for t in FEEDBACKS:
 
 import mlflow
 
+# 👀 界面：左侧 Experiments 页面出现 ev-battery-genai（第一次运行时创建，初始为空）
 mlflow.set_experiment(GENAI_EXPERIMENT_PATH)
+# 👀 界面：之后每次 LLM 调用都会在 Experiments → ev-battery-genai → Traces 标签页新增一条 Trace；
+#          AI Gateway → Models → 你的模型 的 Total tokens / Metrics 也会增加（有几分钟延迟）
 mlflow.openai.autolog()
 
 for t in FEEDBACKS:
@@ -144,6 +147,7 @@ print("✅ 已生成 Trace，去 Experiments 页面看看")
 
 # COMMAND ----------
 
+# 👀 界面：结果直接显示在单元格下方；这些调用计入 AI Gateway → Models → 你的模型 的用量
 display(spark.sql(f"""
 SELECT vehicle_id, vehicle_model, battery_chemistry, soh_pct, fast_charge_ratio, max_cell_temp_c_30d,
        ai_query(

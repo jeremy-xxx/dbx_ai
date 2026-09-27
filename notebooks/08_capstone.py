@@ -46,6 +46,7 @@ CAMPAIGN_TABLE = f"{CATALOG}.{SCHEMA}.battery_service_campaign"
 import mlflow
 from pyspark.sql import functions as F
 
+# （界面无变化）用于按别名加载 UC 中的模型
 mlflow.set_registry_uri("databricks-uc")
 udf = mlflow.pyfunc.spark_udf(spark, f"models:/{BASE_MODEL_NAME}@champion", result_type="array<double>")
 
@@ -102,6 +103,7 @@ display(candidates)
 
 # COMMAND ----------
 
+# 👀 界面：这些调用计入 AI Gateway → Models → 你的模型 的 Total tokens / Metrics
 notices = spark.sql(f"""
 SELECT *,
   ai_query(
@@ -148,6 +150,7 @@ if agent_endpoint:
     oai = w.serving_endpoints.get_open_ai_client()
     for row in candidates.limit(AGENT_TOP_N).collect():
         try:
+            # 👀 界面：Agent 端点页面 Metrics 请求数增加，推理表中留下请求记录
             r = oai.responses.create(
                 model=agent_endpoint,
                 input=[{"role": "user", "content":
@@ -172,6 +175,7 @@ campaign = (notices.join(advice_df, "vehicle_id", "left")
     .withColumn("run_date", F.current_date())
     .withColumn("model_version", F.lit(str(champion_version))))
 
+# 👀 界面：Tables 出现 battery_service_campaign；每次运行追加（append）一批，按 run_date 区分
 campaign.write.mode("append").option("mergeSchema", "true").saveAsTable(CAMPAIGN_TABLE)
 print(f"✅ 已写入 {CAMPAIGN_TABLE}")
 display(spark.table(CAMPAIGN_TABLE).orderBy(F.desc("run_date"), "priority", F.desc("fault_proba")).limit(20))

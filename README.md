@@ -115,6 +115,7 @@ databricks-aiml-lab/
 2. 修改 `notebooks/00_config.py` 里的 `CATALOG` / `SCHEMA` / `LLM_MODEL`。
 3. 运行 `notebooks/00_setup_data.py` 生成数据。
 4. 按阶段顺序阅读 `docs/0X-*.md`，每个文档都会告诉你：**先在 UI 里看什么 → 再跑哪个 notebook → 做哪些练习 → 如何自检**。
+5. notebook 代码中以 **`# 👀 界面：`** 开头的注释，说明这行代码运行后**去 Databricks 界面的哪里能看到效果**（新建的表、实验、模型、端点等）；**`# （界面无变化）`** 表示只改了当前会话的设置。边运行边对照界面，是理解每个功能最快的方式。
 
 ## 学习路线与预计耗时
 

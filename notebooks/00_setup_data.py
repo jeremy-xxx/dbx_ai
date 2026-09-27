@@ -98,10 +98,12 @@ display(pdf.head(10))
 
 # COMMAND ----------
 
+# 👀 界面：Catalog → main → ev_battery_lab → Tables 出现 vehicles 表；点开看 Sample Data（数据）和 Columns（字段）
 (spark.createDataFrame(pdf)
     .write.mode("overwrite").option("overwriteSchema", "true")
     .saveAsTable(VEHICLES_TABLE))
 
+# 👀 界面：表的 Overview 显示这段描述；下面几行给列加的 COMMENT 显示在 Columns 标签的 Comment 列
 spark.sql(f"COMMENT ON TABLE {VEHICLES_TABLE} IS 'EV battery lab: 合成车辆档案与 BMS 遥测数据，标签 battery_fault_90d'")
 spark.sql(f"ALTER TABLE {VEHICLES_TABLE} ALTER COLUMN vehicle_id SET NOT NULL")
 spark.sql(f"ALTER TABLE {VEHICLES_TABLE} ALTER COLUMN soh_pct COMMENT '电池健康度 State of Health，新车为 100'")
@@ -129,6 +131,7 @@ actions = pd.DataFrame([
     ("commercial_van", "high",   "P1", "立即调度备用车，48 小时内进站检测，优先模组更换", 8.0),
 ], columns=["vehicle_model", "risk_level", "priority", "action", "service_hours"])
 
+# 👀 界面：Tables 下出现 maintenance_actions 表（9 行）
 (spark.createDataFrame(actions)
     .write.mode("overwrite").option("overwriteSchema", "true")
     .saveAsTable(ACTIONS_TABLE))

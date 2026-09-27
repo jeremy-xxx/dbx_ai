@@ -40,6 +40,7 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# 👀 界面：运行后 Catalog → main → ev_battery_lab → Functions 出现下面 3 个函数，点开可看到参数和 COMMENT
 spark.sql(f"""
 CREATE OR REPLACE FUNCTION {FN_PROFILE}(
   vid STRING COMMENT '车辆ID，格式为大写字母V加5位数字，例如 V00042'
@@ -114,13 +115,16 @@ files = sorted(policy_dir.glob("*.md"))
 assert files, f"没找到规程文档，请确认 {policy_dir} 存在（见 docs/00 的导入说明）"
 
 rows = [(f.stem, f.read_text(encoding="utf-8")) for f in files]
+# 👀 界面：Tables 出现 policy_texts（每个规程文档一行）
 spark.createDataFrame(rows, ["doc_name", "content"]).write.mode("overwrite").saveAsTable(POLICY_TABLE)
 
+# 👀 界面：Catalog → main → ev_battery_lab → Volumes 出现 policy_docs，点进去能看到上传的 .md 文件
 spark.sql(f"CREATE VOLUME IF NOT EXISTS {POLICY_VOLUME} COMMENT '电池售后规程文档（Knowledge Assistant 数据源）'")
 for f in files:
     shutil.copy(f, f"{POLICY_VOLUME_PATH}/{f.name}")
 print("✅ 已上传:", [f.name for f in files], "→", POLICY_VOLUME_PATH)
 
+# 👀 界面：Functions 下出现 get_policy_doc
 spark.sql(f"""
 CREATE OR REPLACE FUNCTION {FN_POLICY}(
   doc STRING COMMENT '文档名：battery_maintenance_sop（维保规程：风险等级、安全红线、沟通要求）/ battery_warranty_policy（质保政策：期限、范围、审批）/ charging_faq（充电与续航常见问题）'

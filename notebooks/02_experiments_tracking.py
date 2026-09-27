@@ -33,7 +33,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+# （界面无变化）只影响本 notebook 之后注册模型的去向（Unity Catalog）
 mlflow.set_registry_uri("databricks-uc")
+# 👀 界面：左侧 Experiments 页面出现 ev-battery-risk（Workspace → Users → 你的邮箱 下也有）；
+#          首次运行时为空，已存在则直接使用、不会清空
 exp = mlflow.set_experiment(EXPERIMENT_PATH)
 print("experiment_id:", exp.experiment_id)
 
@@ -78,6 +81,8 @@ def evaluate(pipe, threshold: float = 0.5) -> dict:
 
 # COMMAND ----------
 
+# 👀 界面：下面这次训练会在 ev-battery-risk 里新增 Run “autolog_demo_logreg”，
+#          自动记录的内容在 Run 详情的 Parameters、Metrics、Artifacts 区
 mlflow.sklearn.autolog(log_input_examples=True)
 
 with mlflow.start_run(run_name="autolog_demo_logreg") as run:
@@ -118,6 +123,7 @@ def log_feature_importance(pipe):
     plt.close(fig)
 
 def train_and_log(run_name: str, estimator_cls, params: dict, nested: bool = False) -> dict:
+    # 👀 界面：每调用一次，ev-battery-risk 里多一个 Run（名字 = run_name）
     with mlflow.start_run(run_name=run_name, nested=nested) as run:
         pipe = make_pipeline(estimator_cls(**params))
         pipe.fit(X_train, y_train)
@@ -129,11 +135,14 @@ def train_and_log(run_name: str, estimator_cls, params: dict, nested: bool = Fal
 
         fig, ax = plt.subplots(figsize=(4, 4))
         ConfusionMatrixDisplay.from_estimator(pipe, X_test, y_test, ax=ax)
+        # 👀 界面：Run 详情 → Artifacts 里出现 confusion_matrix.png，点击可预览
         mlflow.log_figure(fig, "confusion_matrix.png")
         plt.close(fig)
         log_feature_importance(pipe)
 
         signature = infer_signature(X_train, pipe.predict_proba(X_train.head(5)))
+        # 👀 界面：Run 详情 → Artifacts 出现 model/ 目录（MLmodel、requirements.txt、input_example.json）；
+        #          实验页面的 Models 标签（Logged Models）也会多一条
         mlflow.sklearn.log_model(
             sk_model=pipe,
             name="model",                        # MLflow < 3 请改为 artifact_path="model"
@@ -156,6 +165,7 @@ for name, (cls, params) in CANDIDATES.items():
 
 # COMMAND ----------
 
+# 👀 界面：出现父 Run “gbdt_grid_search”，点它左侧的 ▶ 展开可看到 4 个子 Run
 with mlflow.start_run(run_name="gbdt_grid_search"):
     best_auc = 0.0
     for lr in [0.05, 0.1]:

@@ -22,7 +22,9 @@ import mlflow
 from databricks.feature_engineering import FeatureEngineeringClient, FeatureLookup
 from pyspark.sql import functions as F
 
+# （界面无变化）决定 fe.log_model 注册到 Unity Catalog
 mlflow.set_registry_uri("databricks-uc")
+# （界面无变化）本 notebook 的训练 Run 记录到阶段 2 创建的 ev-battery-risk
 mlflow.set_experiment(EXPERIMENT_PATH)
 fe = FeatureEngineeringClient()
 
@@ -65,6 +67,7 @@ display(features_df.limit(5))
 if spark.catalog.tableExists(FEATURE_TABLE):
     fe.drop_table(name=FEATURE_TABLE)
 
+# 👀 界面：左侧 Features 页面能搜到 battery_features；Catalog 里它显示为带主键的表
 fe.create_table(
     name=FEATURE_TABLE,
     primary_keys=["vehicle_id"],
@@ -78,6 +81,7 @@ COMMENTS = {
     "thermal_stress": "近30天最高温度超过45℃的部分（℃）",
     "imbalance_per_soh_loss": "压差 / (SOH损失+1)，数值异常高提示单体缺陷而非正常老化",
 }
+# 👀 界面：Features / Catalog 中该表 Columns 标签的 Comment 列显示这些说明
 for col, comment in COMMENTS.items():
     spark.sql(f"ALTER TABLE {FEATURE_TABLE} ALTER COLUMN {col} COMMENT '{comment}'")
 print(f"✅ 特征表 {FEATURE_TABLE} 创建完成，去 AI/ML → Features 页面看看")
@@ -129,6 +133,7 @@ pipe = Pipeline([
     ("clf", GradientBoostingClassifier(n_estimators=200, learning_rate=0.1, max_depth=3, random_state=42)),
 ])
 
+# 👀 界面：ev-battery-risk 里新增 Run “gbdt_with_feature_store”，可和阶段 2 的 Run 对比 roc_auc
 with mlflow.start_run(run_name="gbdt_with_feature_store") as run:
     pipe.fit(X_train, y_train)
     proba = pipe.predict_proba(X_test)[:, 1]
@@ -136,6 +141,7 @@ with mlflow.start_run(run_name="gbdt_with_feature_store") as run:
     mlflow.log_metrics(metrics)
     mlflow.set_tag("stage", "lab-06")
 
+    # 👀 界面：Models 中出现 battery_risk_model_fs；版本页面和 Features 页面的 Lineage 能看到它与 battery_features 的关联
     fe.log_model(
         model=pipe,
         artifact_path="model",           # 新版本若提示改用 name=，按提示修改
@@ -152,6 +158,7 @@ from mlflow import MlflowClient
 
 client = MlflowClient()
 latest = max(int(v.version) for v in client.search_model_versions(f"name='{FS_MODEL_NAME}'"))
+# 👀 界面：battery_risk_model_fs 最新版本带上 @champion 标签
 client.set_registered_model_alias(FS_MODEL_NAME, "champion", latest)
 print(f"✅ {FS_MODEL_NAME} Version {latest} → champion")
 
@@ -185,6 +192,7 @@ new_telemetry = (spark.table(VEHICLES_TABLE).where(F.col("vehicle_id") == target
     .withColumn("cell_voltage_imbalance_mv", F.lit(180.0))
     .withColumn("bms_alerts_90d", F.lit(8))
     .withColumn("soh_pct", F.col("soh_pct") - 6))
+# 👀 界面：battery_features 表 → History 标签多一条 MERGE 记录（Delta 表的版本历史）
 fe.write_table(name=FEATURE_TABLE, df=compute_features(new_telemetry), mode="merge")
 
 after = fe.score_batch(model_uri=model_uri, df=target_df).select("prediction").first()[0]

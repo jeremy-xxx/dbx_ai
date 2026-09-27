@@ -57,6 +57,7 @@ print(yaml.safe_dump(agent_config, allow_unicode=True))
 
 import mlflow
 
+# 👀 界面：本 notebook 的 Trace 和评估结果都记录到 Experiments → ev-battery-genai（阶段 1 已创建）
 mlflow.set_experiment(GENAI_EXPERIMENT_PATH)
 
 from agent import AGENT
@@ -78,6 +79,7 @@ DEGRADED_VID = pick(f"soh_pct < 72 AND max_cell_temp_c_30d < {REDLINE_TEMP_C} AN
 HEALTHY_VID = pick("soh_pct > 97 AND bms_alerts_90d = 0 AND thermal_stress = 0", "cell_voltage_imbalance_mv")
 print("红线车:", REDLINE_VID, "| 严重衰减车:", DEGRADED_VID, "| 健康车:", HEALTHY_VID)
 
+# 👀 界面：单元格下方直接显示 Trace 面板；Experiments → ev-battery-genai → Traces 也新增一条
 resp = AGENT.predict({"input": [{"role": "user", "content": f"帮我看看车辆 {REDLINE_VID} 的电池情况，该怎么处理？"}]})
 print(text_of(resp))
 
@@ -139,6 +141,7 @@ scorers = [
     no_probability_in_owner_script,
 ]
 
+# 👀 界面：Experiments → ev-battery-genai → Evaluations 标签页出现一次评估，可逐条查看得分和裁判理由
 results = mlflow.genai.evaluate(data=eval_data, predict_fn=predict_fn, scorers=scorers)
 print("run_id:", results.run_id)
 display(results.metrics)
@@ -171,6 +174,7 @@ resources = [
 
 input_example = {"input": [{"role": "user", "content": "车辆 V00042 的电池需要检修吗？"}]}
 
+# 👀 界面：ev-battery-genai 里新增 Run “battery_service_agent”，Artifacts 中有 agent/ 目录（含 agent.py、agent_config.yaml）
 with mlflow.start_run(run_name="battery_service_agent"):
     logged = mlflow.pyfunc.log_model(
         name="agent",
@@ -206,6 +210,7 @@ mlflow.models.predict(model_uri=logged.model_uri, input_data=input_example, env_
 # COMMAND ----------
 
 mlflow.set_registry_uri("databricks-uc")
+# 👀 界面：Models 中出现 battery_service_agent（Agent 也是一种“模型”）
 mv = mlflow.register_model(logged.model_uri, AGENT_MODEL_NAME)
 print(f"✅ {AGENT_MODEL_NAME} Version {mv.version}")
 
@@ -228,6 +233,8 @@ print(f"✅ {AGENT_MODEL_NAME} Version {mv.version}")
 
 from databricks import agents
 
+# 👀 界面：Serving 页面出现 agents_<catalog>-ev_battery_lab-battery_service_agent 端点（约 15 分钟 Ready）；
+#          打印的 review_app_url 可打开 Review App；Playground 模型下拉框里也能选到这个 Agent
 deployment = agents.deploy(AGENT_MODEL_NAME, mv.version, tags={"project": "ev-battery-lab"}, scale_to_zero=True)
 print("endpoint  :", deployment.endpoint_name)
 print("review app:", deployment.review_app_url)

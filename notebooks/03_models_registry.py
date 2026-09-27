@@ -23,8 +23,10 @@ import pandas as pd
 from mlflow import MlflowClient
 from sklearn.metrics import recall_score, roc_auc_score
 
+# （界面无变化）决定下面 register_model 注册到 Unity Catalog
 mlflow.set_registry_uri("databricks-uc")
 client = MlflowClient()
+# （界面无变化）ev-battery-risk 已在阶段 2 创建，这里只是为了按实验查询 Run
 exp = mlflow.set_experiment(EXPERIMENT_PATH)
 
 runs = mlflow.search_runs(
@@ -45,9 +47,12 @@ print("第二名:", second["tags.mlflow.runName"], round(second["metrics.roc_auc
 
 # COMMAND ----------
 
+# 👀 界面：左侧 Models（或 Catalog → main → ev_battery_lab → Models）出现 battery_risk_model，含 Version 1
 mv1 = mlflow.register_model(f"runs:/{second.run_id}/model", BASE_MODEL_NAME)
+# 👀 界面：模型页面 Version 1 旁显示别名标签 @champion
 client.set_registered_model_alias(BASE_MODEL_NAME, "champion", mv1.version)
 
+# 👀 界面：模型页面 Overview 的描述区显示这段 Markdown
 client.update_registered_model(
     BASE_MODEL_NAME,
     description=(
@@ -68,6 +73,7 @@ print(f"✅ 注册 Version {mv1.version} 并设为 champion")
 
 # COMMAND ----------
 
+# 👀 界面：同一模型下新增 Version 2，下一行给它加上 @challenger 标签
 mv2 = mlflow.register_model(f"runs:/{best.run_id}/model", BASE_MODEL_NAME)
 client.set_registered_model_alias(BASE_MODEL_NAME, "challenger", mv2.version)
 client.update_model_version(BASE_MODEL_NAME, mv2.version, description=f"来自 run {best['tags.mlflow.runName']}")
@@ -96,6 +102,7 @@ print("champion  :", {k: round(v, 4) for k, v in champ.items()})
 print("challenger:", {k: round(v, 4) for k, v in chall.items()})
 
 if chall["auc"] > champ["auc"] and chall["recall@0.3"] >= champ["recall@0.3"]:
+    # 👀 界面：@champion 标签从 Version 1 移到 Version 2，@challenger 被删除
     client.set_registered_model_alias(BASE_MODEL_NAME, "champion", mv2.version)
     client.delete_registered_model_alias(BASE_MODEL_NAME, "challenger")
     client.set_model_version_tag(BASE_MODEL_NAME, mv2.version, "validation_status", "approved")

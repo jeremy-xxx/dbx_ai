@@ -50,6 +50,8 @@ def gateway_config(calls: int, key: AiGatewayRateLimitKey) -> dict:
 
 # COMMAND ----------
 
+# 👀 界面：Serving → 端点页面的 AI Gateway 区域显示已开启 Usage tracking、Inference tables、Rate limits；
+#          左侧 AI Gateway 页面也能看到这个端点的配置
 w.serving_endpoints.put_ai_gateway(name=RISK_ENDPOINT, **gateway_config(5, AiGatewayRateLimitKey.USER))
 
 print(w.serving_endpoints.get(RISK_ENDPOINT).ai_gateway)
@@ -72,6 +74,7 @@ headers = {**w.config.authenticate(), "Content-Type": "application/json"}
 sample = (spark.table(VEHICLES_TABLE).select("vehicle_id", *MODEL_FEATURES).limit(10).toPandas()
           .astype({c: "float64" for c in NUMERIC_FEATURES}))
 
+# 👀 界面：端点页面 → Metrics 中 4xx 错误数上升（被限流的 429 请求）
 for i, row in enumerate(sample.to_dict(orient="records"), 1):
     vid = row.pop("vehicle_id")
     r = requests.post(url, headers=headers, json={"dataframe_records": [row]}, timeout=120)
@@ -86,6 +89,7 @@ for i, row in enumerate(sample.to_dict(orient="records"), 1):
 
 # COMMAND ----------
 
+# 👀 界面：Catalog → main → ev_battery_lab → Tables 出现 risk_ep_payload（首次请求后 5–10 分钟才出现）
 if spark.catalog.tableExists(PAYLOAD_TABLE):
     display(spark.sql(f"""
         SELECT request_time, status_code, execution_duration_ms, requester, request, response
@@ -146,6 +150,7 @@ except Exception as e:
 
 # COMMAND ----------
 
+# 👀 界面：端点 AI Gateway 区域的 Rate limits 变为“整个端点 600 次/分钟”
 w.serving_endpoints.put_ai_gateway(name=RISK_ENDPOINT, **gateway_config(600, AiGatewayRateLimitKey.ENDPOINT))
 print("✅ 限流已放宽为整个端点 600 次/分钟")
 
@@ -172,6 +177,7 @@ if RUN_OPTIONAL:
         OpenAiConfig, ServedEntityInput,
     )
 
+    # 👀 界面：Serving 页面出现 <你的用户名>-ext-gpt 外部模型端点
     w.serving_endpoints.create_and_wait(
         name=EXTERNAL_ENDPOINT,
         config=EndpointCoreConfigInput(served_entities=[ServedEntityInput(
@@ -186,6 +192,7 @@ if RUN_OPTIONAL:
         timeout=timedelta(minutes=20),
     )
 
+    # 👀 界面：该端点 AI Gateway 区域显示 Guardrails（护栏）配置
     w.serving_endpoints.put_ai_gateway(
         name=EXTERNAL_ENDPOINT,
         usage_tracking_config=AiGatewayUsageTrackingConfig(enabled=True),

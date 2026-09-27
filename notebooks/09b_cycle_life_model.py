@@ -33,7 +33,9 @@ import mlflow
 import numpy as np
 import pandas as pd
 
+# （界面无变化）决定下面 register_model 注册到 Unity Catalog
 mlflow.set_registry_uri("databricks-uc")
+# 👀 界面：左侧 Experiments 页面出现 ev-battery-cell-life（和车队故障模型的实验分开）
 exp = mlflow.set_experiment(CELL_EXPERIMENT_PATH)
 
 meta = spark.table(CELL_META_TABLE).toPandas()
@@ -126,6 +128,7 @@ from databricks.feature_engineering import FeatureEngineeringClient, FeatureLook
 fe = FeatureEngineeringClient()
 if spark.catalog.tableExists(CELL_FEATURE_TABLE):
     fe.drop_table(name=CELL_FEATURE_TABLE)
+# 👀 界面：左侧 Features 页面能搜到 cell_early_features
 fe.create_table(
     name=CELL_FEATURE_TABLE,
     primary_keys=["cell_id"],
@@ -200,6 +203,7 @@ def metrics_for(model, feats, split) -> dict:
 results = []
 for fs_name, feats in FEATURE_SETS.items():
     for m_name, make in MODELS.items():
+        # 👀 界面：ev-battery-cell-life 里共新增 6 个 Run（模型 × 特征组），可用 Compare 对比 test_mape_pct
         with mlflow.start_run(run_name=f"{m_name}_{fs_name}") as run:
             model = make().fit(train[feats], train.log_cycle_life)
             m = {}
@@ -247,6 +251,7 @@ from mlflow import MlflowClient
 
 client = MlflowClient()
 best = res.iloc[0]
+# 👀 界面：Models 中出现 cell_cycle_life_model，下一行给最新版本加上 @champion
 mv = mlflow.register_model(f"runs:/{best.run_id}/model", CELL_MODEL_NAME)
 client.set_registered_model_alias(CELL_MODEL_NAME, "champion", mv.version)
 client.update_registered_model(
@@ -277,6 +282,7 @@ pred["abs_pct_error"] = (np.abs(pred.predicted_cycle_life - pred.cycle_life) / p
 pred = pred.merge(meta[["cell_id", "batch", "charge_policy"]], on="cell_id")
 pred["model_version"] = str(mv.version)
 
+# 👀 界面：Tables 出现 cell_life_predictions
 (spark.createDataFrame(pred)
     .write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(CELL_PRED_TABLE))
 display(spark.table(CELL_PRED_TABLE).orderBy("abs_pct_error", ascending=False))
@@ -288,6 +294,7 @@ display(spark.table(CELL_PRED_TABLE).orderBy("abs_pct_error", ascending=False))
 
 # COMMAND ----------
 
+# 👀 界面：Functions 下出现 get_cell_life_prediction
 spark.sql(f"""
 CREATE OR REPLACE FUNCTION {FN_CELL_LIFE}(
   cid STRING COMMENT '电芯ID，格式如 b1c5（批次1第5号）、b3c10'

@@ -97,6 +97,7 @@ FN_CELL_LIFE = f"{CATALOG}.{SCHEMA}.get_cell_life_prediction"
 REDLINE_TEMP_C = 60
 REDLINE_IMBALANCE_MV = 150
 
+# 👀 界面：Catalog → {CATALOG} 下出现 ev_battery_lab 库（已存在则跳过，不删数据）
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 spark.sql(f"USE CATALOG {CATALOG}")
 spark.sql(f"USE SCHEMA {SCHEMA}")
