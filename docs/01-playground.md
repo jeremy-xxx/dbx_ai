@@ -20,6 +20,26 @@ Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上�
 | **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
 | **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
 
+**Playground、Unity Gateway、Serving 三者的关系**（2026-09 起）：
+
+```
+                        Playground（聊天界面，模型下拉框）
+                                  │  调用
+              ┌───────────────────┴────────────────────┐
+              ▼                                        ▼
+   Unity Gateway 模型服务                        Serving 端点
+   system.ai.*（Databricks 提供的基础模型）          你自己部署的东西
+   例：system.ai.qwen3-next-80b-a3b-instruct       例：外部模型端点（阶段 5）、电池售后 Agent（阶段 7）
+   地址：/ai-gateway/mlflow/v1                     地址：/serving-endpoints/<端点名>
+   本阶段用的就是它                                 阶段 4 起才会有
+              │                                        │
+              └────── 都受 Unity Gateway 统一治理（用量、限流、权限）──────┘
+```
+
+- **以前**（2026-09 之前）：基础模型也是 Serving 端点（`databricks-*`），所以旧教程常说“Playground 调用的是 Serving 端点”；
+- **现在**：基础模型搬到了 Unity Gateway，**Serving 页面只放你自己部署的模型和 Agent**；Playground 两边都能选；
+- 所以阶段 1 里 Serving 页面是空的很正常，做完阶段 4、7，你部署的端点才会出现在 Serving 页面，也能在 Playground 的模型下拉框里选到。
+
 > 🔑 **关键认知**：Playground 里做的一切，都能在代码里用 **OpenAI 兼容接口** 1:1 复现。这就是 Databricks “先 UI 原型、再代码工程化” 的思路。
 
 ---
@@ -217,7 +237,7 @@ FROM vehicles LIMIT 5
 
 ## 1.4 检查点
 
-- [ ] 能说清 Playground 与 Serving 端点的关系
+- [ ] 能说清 Playground、Unity Gateway 模型服务、Serving 端点三者的关系（见 1.1 节的图）：为什么现在 Serving 页面是空的，而 Playground 里有很多模型
 - [ ] 完成多模型对比，并记录了你心目中“结构化输出最稳”的模型
 - [ ] notebook 中 `ai_query` 能跑通
 - [ ] 在 **Experiments** 页面找到 `ev-battery-genai` 实验，并打开一条 **Trace**，看到了输入、输出、token 数
