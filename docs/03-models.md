@@ -30,6 +30,44 @@ Experiment 里的 Run ──(register)──►  Registered Model: main.ev_batte
 
 > ⚠️ 旧版 Workspace Model Registry 的 “Stage（Staging/Production）” 在 UC 中已被 **Alias** 取代。
 
+### Run、Logged Model、Registered Model 的关系
+
+三者容易混淆，关键是分清 **“记录”** 和 **“模型”**：
+
+| 对象 | 是什么 | 在哪里看 | 类比 |
+|---|---|---|---|
+| **Run** | 一次训练的**记录**：参数、指标、图表、日志 | Experiments → 实验 → Runs | 实验记录本上的一页 |
+| **Logged Model** | Run 中通过 `log_model` 保存的**模型包**（模型文件 + 签名 + 依赖 + 输入样例） | Run 详情 → Artifacts；实验页面的 Models 标签 | 这次实验做出来的样品 |
+| **Registered Model** | UC 中的**正式模型**，由多个版本组成 | Catalog / 左侧 Models | 成品仓库里的一个产品 |
+| **Model Version** | 注册一次产生一个版本，指向某个 Logged Model | 模型页面的版本列表 | 产品的第 N 批次 |
+
+```
+Experiment（实验）
+  └── Run（一次训练记录）                      1 个 Run ──► N 个 Logged Model
+        ├── Logged Model "model"               （每调用一次 log_model 存一个，靠名字区分；
+        └── Logged Model "model_small"           本项目每个 Run 只存 1 个，名字都叫 "model"）
+                   │
+                   │  mlflow.register_model("runs:/<run_id>/model", ...)
+                   ▼
+Registered Model：main.ev_battery_lab.battery_risk_model    1 个注册模型 ──► N 个版本
+  ├── Version 1  ← 来自 Run A 的 "model"
+  ├── Version 2  ← 来自 Run B 的 "model"
+  └── Version 3  ← 又来自 Run A 的 "model"（同一个 Logged Model 可以被注册多次）
+```
+
+| 关系 | 对应关系 | 说明 |
+|---|---|---|
+| Experiment → Run | 一对多 | 一个实验里有很多次训练 |
+| Run → Logged Model | 一对多 | 一个 Run 可以存多个模型，靠 `log_model(name=...)` 的名字区分 |
+| Logged Model → Run | 多对一 | 每个 Logged Model 只有一个创建它的 Run（“出生地”） |
+| Registered Model → Version | 一对多 | 一个注册模型有很多版本 |
+| Logged Model → Version | 一对多 | 同一个 Logged Model 可被重复注册（本 notebook 重跑就会产生新版本），也可注册到不同名字下 |
+
+几个要点：
+- **注册的是模型，不是 Run**：注册后 Run 仍留在实验里，UC 中的版本通过 **Source run** 链接回到它，这就是模型的血缘；
+- **不是每个 Run 的模型都要注册**：实验阶段会产生很多 Run，只挑值得上线或需要保留的模型注册（本阶段按 `candidate=true` + AUC 挑选）；
+- **MLflow 3 的变化**：Logged Model 成为独立对象，有自己的 ID（`m-xxxx`）和页面。除了创建它的 Run，**之后其它评估 Run 算出的指标也能挂到它身上**。这在大模型场景很有用：同一个 Agent 版本往往会被反复评估。
+
 **模型 URI 速查**
 
 | 写法 | 含义 |
