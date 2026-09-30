@@ -69,12 +69,47 @@ from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntity
 
 w = WorkspaceClient()
 served = [ServedEntityInput(
-    entity_name=BASE_MODEL_NAME, entity_version=champion_version,
+    name="battery-risk-champion",                                    # ② 实体名：自己起，端点内唯一
+    entity_name=BASE_MODEL_NAME, entity_version=champion_version,    # ③ 要加载的 UC 模型和版本：必须已存在
     workload_size="Small", scale_to_zero_enabled=True)]
-w.serving_endpoints.create_and_wait(name=RISK_ENDPOINT,
+w.serving_endpoints.create_and_wait(name=RISK_ENDPOINT,             # ① 端点名：自己起，workspace 内唯一
     config=EndpointCoreConfigInput(name=RISK_ENDPOINT, served_entities=served),   # 新版 SDK 要求 config 里也写 name
     timeout=timedelta(minutes=40))
 ```
+
+### 部署代码里的三个“名字”
+
+```
+端点：zhangsan-battery-risk                                   ← ① 端点名（RISK_ENDPOINT）
+ │     调用地址：https://<workspace>/serving-endpoints/zhangsan-battery-risk/invocations
+ │
+ └── 被服务的实体（served entity）：battery-risk-champion      ← ② 实体名（ServedEntityInput 的 name）
+       └── 实际加载：main.ev_battery_lab.battery_risk_model 第 2 版   ← ③ 模型名 + 版本（entity_name + entity_version）
+```
+
+| 名字 | 代码里 | 新起的还是要匹配 | 作用 |
+|---|---|---|---|
+| ① 端点名 | `create_and_wait(name=RISK_ENDPOINT)` | **新起的**，在整个 workspace 内唯一 | 决定 API 调用地址；Serving 页面列表显示的名字 |
+| ② 实体名 | `ServedEntityInput(name="battery-risk-champion")` | **新起的**，只需在这个端点内唯一；可省略，省略时自动生成（通常为“模型名-版本号”） | 在端点内部区分不同的模型版本 |
+| ③ 模型名 + 版本 | `entity_name=BASE_MODEL_NAME, entity_version=...` | **必须匹配** UC 中已注册的模型和版本 | 告诉端点加载哪个模型 |
+
+**为什么需要 ② 实体名？** 因为一个端点里可以同时挂多个模型版本，比如做 A/B 测试或金丝雀发布（练习 2）：
+
+```python
+served = [
+    ServedEntityInput(name="champion-v2",   entity_name=BASE_MODEL_NAME, entity_version="2", ...),
+    ServedEntityInput(name="challenger-v3", entity_name=BASE_MODEL_NAME, entity_version="3", ...),
+]
+traffic = TrafficConfig(routes=[
+    Route(served_model_name="champion-v2",   traffic_percentage=90),   # ← 必须与上面的 name 对应
+    Route(served_model_name="challenger-v3", traffic_percentage=10),
+])
+```
+这时需要用名字说清楚“90% 的流量给谁、10% 给谁”。**唯一要“匹配”实体名的地方就是流量规则**里的 `served_model_name`。
+
+**在哪里能看到实体名：** Serving → 端点 → **Served entities** 列表；**Metrics** 可按实体分别查看请求量和延迟；阶段 5 的**推理表**会记录每个请求由哪个实体处理，方便 A/B 测试时分别统计效果。
+
+> 💡 实体名里的 “champion” **只是给人看的提示**，和阶段 3 的别名 `@champion` 没有技术上的关联。之后部署新版本时如果沿用同一个实体名，端点里这个实体会**被替换为新版本**，这就是重跑 `04` 时 `update_config_and_wait` 的效果。
 
 ## 4.4 调用端点的 4 种方式
 
