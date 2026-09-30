@@ -180,7 +180,7 @@ if RUN_OPTIONAL:
     # 👀 界面：Serving 页面出现 <你的用户名>-ext-gpt 外部模型端点
     w.serving_endpoints.create_and_wait(
         name=EXTERNAL_ENDPOINT,
-        config=EndpointCoreConfigInput(served_entities=[ServedEntityInput(
+        config=EndpointCoreConfigInput(name=EXTERNAL_ENDPOINT, served_entities=[ServedEntityInput(
             name="gpt-4o-mini",
             external_model=ExternalModel(
                 name="gpt-4o-mini",

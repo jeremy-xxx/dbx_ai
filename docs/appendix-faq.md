@@ -92,6 +92,7 @@ Serverless 启动快、免运维，本项目全部 notebook 都按 Serverless �
 
 | 现象 | 处理 |
 |---|---|
+| `TypeError: EndpointCoreConfigInput.__init__() missing 1 required positional argument: 'name'` | 新版 databricks-sdk 要求 `EndpointCoreConfigInput` 里也写端点名：`EndpointCoreConfigInput(name=RISK_ENDPOINT, served_entities=...)`（04、05 已修复）。SDK 更新频繁，遇到类似的参数报错，可用 `help(类名)` 查看当前版本的参数 |
 | 端点一直 `Not Ready` / 构建失败 | 端点页面 → **Logs → Build logs**，多数是依赖安装失败 |
 | 首次请求很慢或超时 | scale-to-zero 冷启动，等待 1–5 分钟后重试 |
 | `429 Too Many Requests` | 阶段 5 限流生效，运行 `05` 第 5 节放宽 |

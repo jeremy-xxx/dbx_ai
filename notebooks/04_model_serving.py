@@ -62,7 +62,7 @@ except NotFound:
     #          等待时可点进端点 → Logs → Build logs 看构建过程
     w.serving_endpoints.create_and_wait(
         name=RISK_ENDPOINT,
-        config=EndpointCoreConfigInput(served_entities=served),
+        config=EndpointCoreConfigInput(name=RISK_ENDPOINT, served_entities=served),   # 新版 SDK 要求 config 里也写 name
         timeout=timedelta(minutes=40),
     )
 

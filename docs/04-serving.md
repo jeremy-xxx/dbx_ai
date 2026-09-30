@@ -72,7 +72,8 @@ served = [ServedEntityInput(
     entity_name=BASE_MODEL_NAME, entity_version=champion_version,
     workload_size="Small", scale_to_zero_enabled=True)]
 w.serving_endpoints.create_and_wait(name=RISK_ENDPOINT,
-    config=EndpointCoreConfigInput(served_entities=served), timeout=timedelta(minutes=40))
+    config=EndpointCoreConfigInput(name=RISK_ENDPOINT, served_entities=served),   # 新版 SDK 要求 config 里也写 name
+    timeout=timedelta(minutes=40))
 ```
 
 ## 4.4 调用端点的 4 种方式
