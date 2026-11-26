@@ -5,10 +5,10 @@
 | 看不到 | 可能原因 | 处理 |
 |---|---|---|
 | 侧边栏没有 AI/ML 区域 | 工作区 persona 或权限设置 | 左上角切换到 “Machine Learning” 视图，或联系管理员 |
-| Serving 页面没有 `databricks-` 基础模型端点 | **2026-09 起基础模型迁移到 Unity Gateway**（页面顶部有横幅提示） | 正常现象。去 **AI/ML → Unity Gateway → Models** 查看可调用的模型，填到 `00_config` 的 `LLM_MODEL` |
-| Unity Gateway 里没有聊天模型 | 区域不支持 / 无查询权限 / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
+| Serving 页面没有 `databricks-` 基础模型端点 | **2026-09 起基础模型迁移到 Unity Gateway**（页面顶部有横幅提示） | 正常现象。去左侧 **AI/ML → AI Gateway → Models**（页面标题显示 Unity Gateway）查看可调用的模型，填到 `00_config` 的 `LLM_MODEL` |
+| AI Gateway → Models 里没有聊天模型 | 区域不支持 / 无查询权限 / 被管理员禁用 | 联系管理员；或使用外部模型端点（阶段 5 选做） |
 | Agents 页面没有 Agent Bricks 模板 | 区域/版本未开放、未启用 Serverless、Beta 功能未开启 | 管理员在 **Previews** 中启用；否则跳过 7.2，代码 Agent 不受影响 |
-| AI Gateway 页面为空 | 还没有给任何端点配置网关 | 完成阶段 5 后再看 |
+| 左侧叫 AI Gateway，点进去标题却是 Unity Gateway | 同一个入口：Unity Gateway 是新版统一 AI 治理平台的名字。给单个 Serving 端点配置的网关官方称为 AI Gateway (legacy) | 两个名字都会在文档里出现，按上下文理解即可 |
 | Features 页面找不到特征表 | 表没有主键约束 | 必须通过 `fe.create_table` 或带 `PRIMARY KEY` 的建表语句创建 |
 
 ### 模型可用性测试
@@ -61,7 +61,7 @@ for model in ["system.ai.qwen3-next-80b-a3b-instruct", "system.ai.llama-4-maveri
 |---|---|
 | `DeprecationWarning: get_open_ai_client() is deprecated` | 调用 **自己部署的 Serving 端点**（外部模型端点、Agent 端点）时可能出现，只是提示，功能正常。官方建议今后改用 `databricks-openai` 包的 `DatabricksOpenAI` |
 | 返回内容是 `[{'type': 'reasoning', ...}]` 而不是文字 | 推理类模型（如 gpt-oss、qwen35）的返回格式。换非推理模型即可；`agent.py` 里的 `as_text()` 也会自动只取最终文字 |
-| `system.ai.xxx` 报 404 “does not exist” | 这个名字只在 Catalog 的 **Models（登记册）** 里，没有开放成服务。以 **Unity Gateway → Models** 页面列出的为准 |
+| `system.ai.xxx` 报 404 “does not exist” | 这个名字只在 Catalog 的 **Models（登记册）** 里，没有开放成服务。以左侧 **AI Gateway → Models** 页面列出的为准 |
 
 ## B. 环境与依赖
 
@@ -121,7 +121,7 @@ Serverless 启动快、免运维，本项目全部 notebook 都按 Serverless �
 | 加载模型 / 部署 | 模型上 `EXECUTE` |
 | 调用端点 | 端点上 `CAN QUERY` |
 | 修改端点 / AI Gateway | 端点上 `CAN MANAGE` |
-| 查询系统表 | 管理员授予 `system.serving` 的 `SELECT` |
+| 查询系统表 | `system.serving.*` 默认仅账户管理员可查；`system.ai_gateway.usage` 默认需要账户管理员 + metastore 管理员，可由管理员授权 |
 
 ## G. 成本控制清单
 
@@ -135,7 +135,7 @@ Serverless 启动快、免运维，本项目全部 notebook 都按 Serverless �
 
 - MLflow 3 on Databricks：`docs.databricks.com/aws/en/mlflow/`
 - Model Serving：`docs.databricks.com/aws/en/machine-learning/model-serving/`
-- AI Gateway：`docs.databricks.com/aws/en/ai-gateway/`
+- Unity Gateway（左侧菜单 AI Gateway）：`docs.databricks.com/aws/en/ai-gateway/`；端点上的旧版网关：`.../ai-gateway/configure-ai-gateway-endpoints`
 - Feature Engineering in Unity Catalog：`docs.databricks.com/aws/en/machine-learning/feature-store/`
 - Agent Framework & Agent Bricks：`docs.databricks.com/aws/en/generative-ai/agent-framework/`、`.../generative-ai/agent-bricks/`
 - MLflow GenAI 评估：`docs.databricks.com/aws/en/mlflow3/genai/eval-monitor/`

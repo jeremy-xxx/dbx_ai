@@ -22,7 +22,7 @@ CATALOG = "main"        # ← 改成你有 CREATE SCHEMA 权限的 catalog（Fre
 SCHEMA = "ev_battery_lab"
 
 # 基础大模型，通过 Unity Gateway 调用（按 token 计费，需支持 function/tool calling）。
-# 可用模型：左侧 AI/ML → Unity Gateway → Models（Location 为 system.ai 的那些），名字填 system.ai.<服务名>
+# 可用模型：左侧 AI/ML → AI Gateway → Models（页面标题显示 Unity Gateway；Location 为 system.ai 的那些），名字填 system.ai.<服务名>
 # Free Edition 实测（2026-09）：
 #   ✅ system.ai.qwen3-next-80b-a3b-instruct（中文好、支持工具调用、返回纯文本）← 默认
 #   ✅ system.ai.llama-4-maverick（备选）

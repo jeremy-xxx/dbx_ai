@@ -16,7 +16,7 @@ Playground 本质上是一个 **聊天 UI**，背后调用的是 Databricks 上�
 
 | 类别 | 例子 | 计费 | 在哪里看到 |
 |---|---|---|---|
-| **Databricks 提供的基础模型（按 token）** | `system.ai.qwen3-next-80b-a3b-instruct`、`system.ai.llama-4-maverick` 等（可用列表见 Unity Gateway → Models） | 按输入/输出 token | **Unity Gateway → Models**（2026-09 起不再列在 Serving 页面） |
+| **Databricks 提供的基础模型（按 token）** | `system.ai.qwen3-next-80b-a3b-instruct`、`system.ai.llama-4-maverick` 等（可用列表见左侧 AI Gateway → Models） | 按输入/输出 token | 左侧 **AI Gateway → Models**（2026-09 起不再列在 Serving 页面） |
 | **External Models（外部模型）** | 你配置的 OpenAI / Anthropic / Gemini 端点 | 由外部厂商计费 | 你自己创建的 Serving 端点（阶段 5 选做） |
 | **自定义 Agent / 模型端点** | 阶段 7 部署的电池售后 Agent | 按端点算力 | 你自己创建的 Serving 端点 |
 
@@ -120,7 +120,7 @@ Playground 支持给模型添加工具，这正是 Agent 的雏形。点模型�
 | **UC MCP Service** | Databricks 内置的外部服务：`web_search`、`github`、`gmail`、`slack` 等（请求经 Unity Gateway 转发；gmail 这类需要先授权账号） |
 | **Unity Catalog Function** | 选一个 **schema**，把其中**所有**函数整批作为工具（与 UC Function 标签的区别：按 schema 整批 vs 逐个挑选） |
 | **AI Search** | 向量索引的 MCP 形式（Vector Search 在新版中叫 AI Search） |
-| **Genie Agent** | 把 Genie 空间（自然语言查表助手）作为工具 |
+| **Genie Agent** | 把 Genie Agent（自然语言查表助手，左侧菜单 Genie Agents，旧称 Genie 空间）作为工具 |
 | **Custom MCP Server** | 自己在 Databricks Apps 上部署的 MCP 服务（App 名须以 `mcp-` 开头） |
 
 **实验**（模型选 Qwen3 Next Instruct）：
@@ -194,7 +194,7 @@ LIMIT 5                     -- 先小规模测试
 
 | 小节 | 你会学到 |
 |---|---|
-| 1. 确认可用模型 | Unity Gateway → Models 中的 `system.ai.*` 模型服务 |
+| 1. 确认可用模型 | 左侧 AI Gateway → Models 中的 `system.ai.*` 模型服务 |
 | 2. OpenAI 兼容客户端 | `get_llm_client()`（定义在 `00_config`），自动处理地址与鉴权 |
 | 3. System prompt + temperature 实验 | 与 Playground 练习 2、3 对应 |
 | 4. 结构化 JSON 输出：车主反馈分类 | `response_format` 与“解析失败兜底” |
@@ -229,7 +229,7 @@ SELECT vehicle_id,
                 concat('用一句话点评这块电池的状态：', to_json(struct(*)))) AS comment
 FROM vehicles LIMIT 5
 ```
-> `ai_query` 调用 Unity Gateway 模型时，用量记录在系统表 `system.ai_gateway.usage` 中；限流、护栏等其他网关功能不作用于 `ai_query` 批处理。
+> `ai_query` 调用 Unity Gateway 模型时，用量记录在系统表 `system.ai_gateway.usage` 中（查询该表默认需要账户管理员和 metastore 管理员权限）；限流、护栏等其他网关功能不作用于 `ai_query` 批处理。
 
 - `ai_query` 让分析师在 SQL 里批量调用 LLM，阶段 8 会用它批量生成车主进站通知。
 
@@ -246,8 +246,8 @@ FROM vehicles LIMIT 5
 
 | 现象 | 原因 / 解决 |
 |---|---|
-| Serving 页面找不到 `databricks-` 模型 | 正常：2026-09 起基础模型迁移到 Unity Gateway，去 **Catalog → system → ai** 查看 |
-| 调用报 `model not found` / 404 | `LLM_MODEL` 名称写错或该区域没有此模型；以 **Unity Gateway → Models** 页面列出的模型为准（Catalog 的 Models 登记册里的名字不一定能调用） |
+| Serving 页面找不到 `databricks-` 模型 | 正常：2026-09 起基础模型迁移到 Unity Gateway，去左侧 **AI Gateway → Models** 查看 |
+| 调用报 `model not found` / 404 | `LLM_MODEL` 名称写错或该区域没有此模型；以左侧 **AI Gateway → Models** 页面列出的模型为准（Catalog 的 Models 登记册里的名字不一定能调用） |
 | 调用报 403 | 需要 workspace 的 Unity Gateway 查询权限（Workspace access 权限），联系管理员 |
 | `ai_query` 报错不支持 | 需要 Serverless / SQL Warehouse / DBR 15.4+ |
 | JSON 偶尔解析失败 | 降低 temperature；使用 `response_format`；代码中加 try/except 兜底 |

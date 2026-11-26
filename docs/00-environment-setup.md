@@ -7,7 +7,7 @@
 | Databricks Workspace | 开启 **Unity Catalog** | 所有模型、特征表、函数都注册在 UC 里。2023 年后新建的 workspace 基本默认开启 |
 | 计算资源 | **Serverless notebook**（推荐）或 **ML Runtime 15.4 LTS+** 的集群 | Serverless 最省事；用经典集群时选 “Machine Learning” 运行时 |
 | 权限 | 对某个 catalog 有 `USE CATALOG` + `CREATE SCHEMA` | 没有就找管理员，或使用系统给你的个人 catalog |
-| 基础大模型 | **Unity Gateway → Models** 页面能看到模型（如 `system.ai.qwen3-next-80b-a3b-instruct`） | 由 Unity Gateway 提供（按 token 计费），阶段 1/7/8 要用 |
+| 基础大模型 | 左侧 **AI Gateway → Models** 页面能看到模型（如 `system.ai.qwen3-next-80b-a3b-instruct`） | 由 Unity Gateway 提供（按 token 计费），阶段 1/7/8 要用 |
 | 可选 | OpenAI / Anthropic 等 API Key | 仅阶段 5 “外部模型”选做实验需要 |
 
 ### 关于 Databricks Free Edition
@@ -57,20 +57,21 @@ SCHEMA  = "ev_battery_lab"    # 可以不改
 LLM_MODEL = "system.ai.qwen3-next-80b-a3b-instruct"   # 通过 Unity Gateway 调用的大模型（通义千问：中文好、支持工具调用）
 ```
 
-**怎么选模型**：打开左侧 **AI/ML → Unity Gateway → Models**，Location 为 `system.ai` 的就是可调用的模型服务，名字填 `system.ai.<服务名>`。选模型的三个条件：
+**怎么选模型**：打开左侧 **AI/ML → AI Gateway → Models**（页面标题显示 Unity Gateway），Location 为 `system.ai` 的就是可调用的模型服务，名字填 `system.ai.<服务名>`。选模型的三个条件：
 1. **支持工具调用**（阶段 7 的 Agent 需要）；
 2. **返回纯文本**：避开推理类模型（如 `gpt-oss-*`、`qwen35-*`），它们返回“推理块列表”；
 3. 中文效果好、规模适中（学习用不需要最大的模型）。
 
 用 `docs/appendix-faq.md` 里的 “模型可用性测试” 代码可以一次性验证这些条件。
 
-> **Catalog 的 Models 标签 vs Unity Gateway 的 Models 页面**：前者（`system.ai` 下约 100 个）是模型的**登记册**，列出来不代表能调用；后者是**已开放的模型服务**，列出来就能调用。之前 `system.ai.databricks-claude-haiku-4-5` 报 404，就是因为它只在登记册里，没有开放成服务。
+> **Catalog 的 Models 标签 vs AI Gateway 的 Models 页面**：前者（`system.ai` 下约 100 个）是模型的**登记册**，列出来不代表能调用；后者是**已开放的模型服务**，列出来就能调用。之前 `system.ai.databricks-claude-haiku-4-5` 报 404，就是因为它只在登记册里，没有开放成服务。
 
 ### ⚠️ 2026-09 平台变化：基础模型迁移到 Unity Gateway
 Serving 页面顶部如果有横幅 “Foundation model serving has moved to Unity Gateway”，说明你的 workspace 已切换到新方式：
 - **Serving 页面里不再列出 `databricks-*` 基础模型端点**，这很正常。Serving 页面现在只放你自己部署的模型（阶段 4 的风险模型、阶段 7 的 Agent）。
 - 基础模型注册在 Unity Catalog 的 `system.ai` 下，通过 `https://<workspace>/ai-gateway/mlflow/v1` 这个 OpenAI 兼容地址调用。
-- 原来的 **AI Gateway** 更名为 **Unity Gateway**，成为统一管理模型、Agent、MCP 的控制台。
+- **Unity Gateway** 是新的统一 AI 治理平台，管理模型、Agent、MCP 的访问、路由、预算和用量。**左侧菜单入口显示为 AI Gateway**，点进去页面标题是 Unity Gateway，两者指同一个入口。
+- 旧的“给单个 Model Serving 端点配置网关”的功能，官方现在称为 **AI Gateway (legacy)**，仍可使用（阶段 5 会用到）。
 
 本项目只使用 Unity Gateway 方式调用大模型。
 
@@ -133,6 +134,6 @@ SELECT * FROM vehicles WHERE max_cell_temp_c_30d >= 60 OR cell_voltage_imbalance
 - [ ] **Catalog** 里能看到 `你的catalog.ev_battery_lab.vehicles`
 - [ ] 打开表 → **Sample Data** 能看到数据，**Columns** 里能看到字段注释
 - [ ] 上面 3 条 SQL 能跑通，并对“物流车风险更高、快充越多风险越高”有直观认识
-- [ ] **Unity Gateway → Models** 页面能找到 `LLM_MODEL` 配置的模型
+- [ ] 左侧 **AI Gateway → Models** 页面能找到 `LLM_MODEL` 配置的模型
 
 全部打勾，进入 [阶段 1：Playground](01-playground.md)。

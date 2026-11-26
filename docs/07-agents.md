@@ -36,7 +36,7 @@ Databricks 上构建 Agent 的两条路：
 | 优化 | 自动评估 + 自动优化 | 自己写评估、自己迭代 |
 | 适合 | 标准场景快速落地 | 复杂业务逻辑、需要调用 ML 模型、需要完全掌控 |
 
-两者最终都是 **Serving 端点**，都被 **MLflow Tracing / AI Gateway** 统一治理，也可以互相组合。
+两者最终都是 **Serving 端点**，都可以用 **MLflow Tracing** 追踪、用端点上的 **AI Gateway (legacy)** 配置治理，也可以互相组合。
 
 > Agent Bricks 的可用性取决于区域和 workspace 设置（需要 Serverless、部分功能为 Beta）。如果你的 Agents 页面没有这些模板，直接跳到 7.3。
 
@@ -181,7 +181,7 @@ mlflow.genai.evaluate(data=eval_data, predict_fn=predict_fn, scorers=[
 - **Serving** 页面出现 `agents_<catalog>-ev_battery_lab-battery_service_agent` 端点；
 - 打开 **Review App** 链接，像用 ChatGPT 一样对话，还可以对回答 👍/👎、写评语 —— 这些反馈会进入 MLflow，可转成评估集；
 - **Playground** 下拉框里也能选到你的 Agent 端点，可以和基础模型并排对比；
-- 回到 **AI Gateway** 为这个端点加上限流（复习阶段 5）。
+- 在 Serving → 这个 Agent 端点的 **AI Gateway** 区域加上限流（复习阶段 5）。
 
 ---
 

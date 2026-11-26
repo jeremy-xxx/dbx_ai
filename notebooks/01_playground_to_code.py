@@ -21,8 +21,8 @@ dbutils.library.restartPython()
 # MAGIC %md
 # MAGIC ## 1. 找到可用的基础模型
 # MAGIC 2026-09 起，基础模型统一由 **Unity Gateway** 提供，模型注册在 Unity Catalog 的 `system.ai` 下：
-# MAGIC - 在左侧 **Unity Gateway → Models** 中浏览可调用的模型（名称形如 `system.ai.qwen3-next-80b-a3b-instruct`），点开模型的 **Metrics** 标签可看到调用记录；
-# MAGIC - 注意：Catalog → system → ai 的 **Models** 标签是模型“登记册”，列出来不代表能调用；以 Unity Gateway 页面为准。
+# MAGIC - 在左侧 **AI Gateway → Models**（页面标题显示 Unity Gateway）中浏览可调用的模型（名称形如 `system.ai.qwen3-next-80b-a3b-instruct`），点开模型的 **Metrics** 标签可看到调用记录；
+# MAGIC - 注意：Catalog → system → ai 的 **Models** 标签是模型“登记册”，列出来不代表能调用；以左侧 AI Gateway → Models 页面为准。
 # MAGIC
 # MAGIC 本项目使用的模型由 `00_config` 中的 `LLM_MODEL` 决定：
 
@@ -122,7 +122,7 @@ for t in FEEDBACKS:
 # MAGIC ## 5. MLflow Tracing 预告
 # MAGIC 开启 autolog 后，每一次 LLM 调用都会自动记录成一条 **Trace**（输入、输出、耗时、token）。
 # MAGIC 运行后去左侧 **Experiments → ev-battery-genai → Traces** 标签页查看。阶段 7 会重度使用它来调试 Agent。
-# MAGIC （gateway 模式下，同样的调用也会出现在 **Catalog → system → ai → 你的模型 → Metrics** 里，这是 Unity Gateway 的平台级用量记录。）
+# MAGIC （同样的调用也会出现在左侧 **AI Gateway → Models → 你的模型 → Metrics** 里，这是 Unity Gateway 的平台级用量记录。）
 
 # COMMAND ----------
 

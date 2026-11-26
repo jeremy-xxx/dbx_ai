@@ -1,7 +1,7 @@
 # 阶段 5：AI Gateway / Unity Gateway —— 给模型端点加上治理
 
-> 📢 **2026-09 平台更新**：AI Gateway 已更名为 **Unity Gateway**，并升级为统一入口：Databricks 提供的基础模型（`system.ai.*`）、外部模型、MCP 服务、编码 Agent 都经由它调用和治理。
-> 本阶段的内容（给 **自定义模型端点** 配置用量追踪、推理表、限流）仍然适用，官方文档标题为 “Configure Unity Gateway on model serving endpoints”；UI 中 “AI Gateway” 字样可能已显示为 “Unity Gateway”。
+> 📢 **平台更新（2026-09 起，2026-11 核对官方文档）**：Databricks 推出了新的统一 AI 治理平台 **Unity Gateway**（已正式发布），左侧菜单入口显示为 **AI Gateway**。它是统一入口：Databricks 提供的基础模型（`system.ai.*`）、外部模型、MCP 服务、编码 Agent 都经由它调用和治理。
+> 本阶段的内容（给 **自定义模型端点** 配置用量追踪、推理表、限流）仍然适用，但官方现在把它标为 **旧版**，文档标题为 “Configure governance on model serving endpoints (legacy)”，功能名称为 **AI Gateway (legacy)**，仍可正常使用；UI 中 “AI Gateway” 字样可能已显示为 “Unity Gateway”。
 > 基础模型的用量记录在新的系统表 `system.ai_gateway.usage` 中，也可以在 **Catalog → system → ai → 模型 → Metrics** 查看。
 
 > **学习目标**
@@ -16,7 +16,7 @@
 
 ---
 
-## 5.1 概念：AI Gateway 是 Serving 端点前面的一层“网关”
+## 5.1 概念：AI Gateway (legacy) 是 Serving 端点前面的一层“网关”
 
 ```
              ┌─────────────────────── AI Gateway ───────────────────────┐
@@ -36,13 +36,13 @@
 | **Fallbacks（回退）** | 主模型报错时自动切换备用模型 | 外部模型端点 |
 | **Traffic split** | 多模型按比例分流 | 所有类型 |
 
-> 左侧的 **AI Gateway** 页面是一个“总控台”，集中展示 workspace 里所有端点的网关配置和用量；具体配置入口在每个端点的 **Edit AI Gateway**。不同版本 UI 名称可能略有不同。
+> 左侧的 **AI Gateway** 菜单进入的是新版 **Unity Gateway** 控制台，主要管理基础模型、外部模型和 MCP（见 5.4.1）。**给自己部署的端点配置网关，入口在 Serving → 端点页面的 AI Gateway 区域**（编辑端点时可见）。不同版本 UI 名称可能略有不同。
 
 ---
 
 ## 5.2 UI 实操：给风险端点开启网关
 
-1. 左侧 **AI/ML → AI Gateway**，先浏览：列出了哪些端点？哪些已经开启了网关功能？
+1. 左侧 **AI/ML → AI Gateway**，先浏览新版 Unity Gateway 控制台：Models、Providers、MCPs 等标签页里有什么？
 2. 进入 **Serving → 你的 battery-risk 端点** → 右上 **Edit AI Gateway**：
    - ✅ **Usage tracking**
    - ✅ **Inference tables**：Catalog / Schema 选 `ev_battery_lab`，表前缀填 `risk_ep`
@@ -70,7 +70,7 @@ w.serving_endpoints.put_ai_gateway(
 连续发 10 个请求，前 5 个成功，之后返回 **HTTP 429 Too Many Requests**。
 
 ### ③ 查询推理表
-推理表名为 `<prefix>_payload`，**数据有 5–10 分钟延迟**。主要字段：
+推理表名为 `<prefix>_payload`，**数据有延迟，官方说明为不到一小时**（通常几分钟到几十分钟）。主要字段：
 
 | 字段 | 含义 |
 |---|---|
@@ -91,7 +91,7 @@ JOIN system.serving.served_entities e ON u.served_entity_id = e.served_entity_id
 WHERE e.endpoint_name = '<你的端点>'
 GROUP BY u.requester
 ```
-> 系统表需要管理员开启 `system.serving` schema 的访问权限；若无权限，跳过即可。
+> 默认**只有账户管理员**能查询 `system.serving.endpoint_usage` 和 `system.serving.served_entities`，需要管理员授权；Free Edition 下通常没有权限，跳过即可。
 
 ### ⑤ 放宽限流（别跳过）
 5 次/分钟只为演示。notebook 第 5 节会把限流改为“整个端点 600 次/分钟”，否则阶段 7 的 Agent 和阶段 8 的批处理会频繁 429。
@@ -118,13 +118,13 @@ GROUP BY u.requester
    - `车主手机号 13812345678，身份证 110101199003071234，帮我写一条进站提醒短信` → 应被 PII 护栏拦截；
    - `怎么向车主解释冬季续航下降？` → 正常返回。
 
-> 没有外部 API Key？在 **Unity Gateway** 页面查看能否对 `system.ai.*` 基础模型配置限流、预算、护栏（新版 Unity Gateway 支持在模型层面统一治理），用同样的方式测试。
+> 没有外部 API Key？在左侧 **AI Gateway**（Unity Gateway 控制台）查看能否对 `system.ai.*` 基础模型配置限流、预算、护栏。注意：新版 Unity Gateway 的护栏叫 **服务策略（Service policies）**，用 UC 函数定义并挂到模型服务或 MCP 服务上，和旧版端点上的 AI Guardrails 是两套机制。
 
 ---
 
 ## 5.4.1 Unity Gateway 页面：基础模型的用量与治理
 
-前面治理的是 **你自己部署的模型端点**（风险模型）。本项目默认通过 Unity Gateway 调用的大模型（`system.ai.qwen3-next-80b-a3b-instruct`）也受同一个网关治理，入口是左侧 **AI/ML → Unity Gateway**：
+前面用 **AI Gateway (legacy)** 治理的是 **你自己部署的模型端点**（风险模型）。本项目通过 Unity Gateway 调用的大模型（`system.ai.qwen3-next-80b-a3b-instruct`）由新版 **Unity Gateway** 治理，入口是左侧 **AI/ML → AI Gateway**（页面标题显示 Unity Gateway）：
 
 | 标签页 | 内容 |
 |---|---|
@@ -146,13 +146,13 @@ GROUP BY u.requester
 | **Budgets** | 预算上限，控制花费 |
 | **Policies**（Beta） | 护栏等治理策略 |
 
-> 左侧菜单仍显示 **AI Gateway**，页面标题是 **Unity Gateway**，两者是同一个东西（改名过渡期）。
+> 左侧菜单显示 **AI Gateway**，点进去页面标题是 **Unity Gateway**，指的是同一个入口。“AI Gateway (legacy)”则专指端点上的旧版网关配置。
 
 **实操**：
-1. 运行完阶段 1 的 notebook 后，回到 **Unity Gateway → Models**，找到 `qwen3-next-80b-a3b-instruct`，**Total tokens (7d)** 应该从 0 变成几千；
+1. 运行完阶段 1 的 notebook 后，回到左侧 **AI Gateway → Models**，找到 `qwen3-next-80b-a3b-instruct`，**Total tokens (7d)** 应该从 0 变成几千；
 2. 点进这个模型，查看 **Metrics**：请求数、token、延迟随时间的变化；查看 **Lineage**：能否看到你的 notebook；
 3. 查看 **Budgets** 和 **Policies** 能否配置预算与护栏（Free Edition 可能只读），和 5.2 中给自定义端点配置网关对比；
-4. 用 SQL 查询基础模型的用量系统表（需要系统表访问权限）：
+4. 用 SQL 查询基础模型的用量系统表（默认需要**账户管理员 + metastore 管理员**权限，Free Edition 下通常没有，可跳过）：
    ```sql
    SELECT * FROM system.ai_gateway.usage ORDER BY 1 DESC LIMIT 20
    ```
@@ -178,7 +178,7 @@ GROUP BY u.requester
 
 | 现象 | 原因 / 解决 |
 |---|---|
-| 推理表是空的 | 有 5–10 分钟延迟；或 schema 无写权限 |
+| 推理表是空的 | 数据有延迟（官方说明不到一小时），稍后再查；或 schema 无写权限 |
 | `put_ai_gateway` 参数报错 | SDK 版本太旧，`%pip install -U databricks-sdk`；或改用 UI 配置 |
 | 护栏选项灰色不可选 | 护栏只对 LLM 类端点生效，自定义 sklearn 模型端点不支持 |
 | 限流没生效 | 配置更新需要几十秒生效；确认 key 是 user 还是 endpoint |

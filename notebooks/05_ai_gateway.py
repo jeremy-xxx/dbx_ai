@@ -1,6 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 05 · AI Gateway：用量追踪、推理表、限流、护栏
+# MAGIC # 05 · AI Gateway (legacy)：给自部署端点配置用量追踪、推理表、限流、护栏
+# MAGIC
+# MAGIC > 官方现在把“端点上的网关配置”称为 **AI Gateway (legacy)**，仍可使用；新版统一治理平台叫 **Unity Gateway**（左侧菜单 AI Gateway），见文档 5.4.1。
 # MAGIC
 # MAGIC 对应文档：`docs/05-ai-gateway.md`
 
@@ -51,7 +53,7 @@ def gateway_config(calls: int, key: AiGatewayRateLimitKey) -> dict:
 # COMMAND ----------
 
 # 👀 界面：Serving → 端点页面的 AI Gateway 区域显示已开启 Usage tracking、Inference tables、Rate limits；
-#          左侧 AI Gateway 页面也能看到这个端点的配置
+#          （左侧 AI Gateway 菜单进入的是新版 Unity Gateway 控制台，主要管理基础模型和 MCP，不一定显示这个端点）
 w.serving_endpoints.put_ai_gateway(name=RISK_ENDPOINT, **gateway_config(5, AiGatewayRateLimitKey.USER))
 
 print(w.serving_endpoints.get(RISK_ENDPOINT).ai_gateway)
@@ -85,11 +87,11 @@ for i, row in enumerate(sample.to_dict(orient="records"), 1):
 
 # MAGIC %md
 # MAGIC ## 3. 查询推理表
-# MAGIC ⚠️ 数据有 5–10 分钟延迟。如果表不存在或为空，稍后再运行本单元。
+# MAGIC ⚠️ 数据有延迟（官方说明不到一小时）。如果表不存在或为空，稍后再运行本单元。
 
 # COMMAND ----------
 
-# 👀 界面：Catalog → main → ev_battery_lab → Tables 出现 risk_ep_payload（首次请求后 5–10 分钟才出现）
+# 👀 界面：Catalog → main → ev_battery_lab → Tables 出现 risk_ep_payload（首次请求后有延迟，官方说明不到一小时）
 if spark.catalog.tableExists(PAYLOAD_TABLE):
     display(spark.sql(f"""
         SELECT request_time, status_code, execution_duration_ms, requester, request, response
@@ -126,7 +128,7 @@ if spark.catalog.tableExists(PAYLOAD_TABLE):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. 用量系统表（需要 system.serving 访问权限）
+# MAGIC ## 4. 用量系统表（默认仅账户管理员可查询；Free Edition 下通常无权限，会自动跳过）
 
 # COMMAND ----------
 

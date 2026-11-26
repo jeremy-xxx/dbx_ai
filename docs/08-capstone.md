@@ -23,7 +23,7 @@
 │                           (Agents)                           ▼                 │
 │                                            battery_service_campaign 表         │
 └───────────────────────────────────────────────────────────────────────────────┘
-       ▲ 所有端点调用经过 AI Gateway（限流 / 推理表 / 用量）
+       ▲ 端点调用经过 AI Gateway (legacy)（限流 / 推理表 / 用量）；大模型调用经过 Unity Gateway
        ▲ 所有训练、评估、Trace 记录在 Experiments
        ▲ 所有原型先在 Playground 验证
 ```
@@ -70,7 +70,7 @@ notebook 顶部有 3 个 widget：`top_n`（生成通知的车辆数）、`agent
 |---|---|
 | **Experiments** | `ev-battery-genai` 中 Agent 调用的 Trace（若 Agent 端点开启了 trace 记录） |
 | **Serving** | 风险端点、LLM 端点、Agent 端点的 Metrics 中请求量上升 |
-| **AI Gateway** | 用量统计；`risk_ep_payload` 推理表中出现 Agent 发起的请求 |
+| **AI Gateway** | 左侧 AI Gateway → Models：大模型的 token 用量；风险端点的 `risk_ep_payload` 推理表中出现 Agent 发起的请求 |
 | **Models** | `battery_risk_model` 的血缘 |
 | **Features** | `battery_features` 的 Consumers 中出现本 notebook / Job |
 
@@ -78,9 +78,9 @@ notebook 顶部有 3 个 widget：`top_n`（生成通知的车辆数）、`agent
 
 1. **闭环再训练**：把推理表中的线上请求 + 90 天后的真实故障结果组合成新训练集，重新训练、注册为 challenger，通过阶段 3 的“AUC + recall 闸门”后自动晋升，最后更新端点配置。
 2. **通知质量评估**：把 `notice_draft` 作为输出，用 `mlflow.genai.evaluate` + `Guidelines`（“红线车必须提示停止快充”“不透露概率”“无恐慌措辞”）批量评估，统计违规率。
-3. **成本分析**：用 `system.serving.endpoint_usage` 统计本流水线每次运行消耗的 token 数，估算每辆车的 AI 巡检成本。
+3. **成本分析**：用 `system.ai_gateway.usage`（大模型调用）和 `system.serving.endpoint_usage`（自部署端点）统计本流水线每次运行的用量，估算每辆车的 AI 巡检成本（这两张系统表默认需要管理员权限）。
 4. **真实数据**：完成 [阶段 9](09-real-data.md)，用 MIT/Stanford/TRI 公开数据集做电芯寿命早期预测，并把结果作为工具接入 Agent。
-5. **Genie / Dashboard**：用 `battery_service_campaign` 做一个 AI/BI Dashboard（按车型/地区的风险地图、待处置工时），或建一个 Genie 空间让运营用自然语言提问“本周南方地区有多少 P0 车？”。
+5. **Genie / Dashboard**：用 `battery_service_campaign` 做一个 AI/BI Dashboard（按车型/地区的风险地图、待处置工时），或建一个 Genie Agent（左侧 Genie Agents，旧称 Genie 空间）让运营用自然语言提问“本周南方地区有多少 P0 车？”。
 
 ## 8.6 学完自测（面试常问）
 
