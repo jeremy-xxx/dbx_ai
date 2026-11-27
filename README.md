@@ -59,6 +59,7 @@ databricks-aiml-lab/
 │   ├── 05-ai-gateway.md
 │   ├── 06-features.md
 │   ├── 07-agents.md
+│   ├── 07c-rag.md                   手写 RAG：切块、向量化、检索、生成、评估
 │   ├── 08-capstone.md
 │   ├── 09-real-data.md              扩展：真实电芯循环寿命数据
 │   └── appendix-faq.md              常见报错与排查
@@ -73,6 +74,7 @@ databricks-aiml-lab/
 │   ├── 06_feature_engineering.py
 │   ├── 07a_agent_tools.py           创建 UC 函数工具 + 上传维保/质保文档
 │   ├── 07b_agent_build_deploy.py    编写/评估/注册/部署 Agent
+│   ├── 07c_rag.py                   手写 RAG（检索增强生成）及评估
 │   ├── agent.py                     Agent 源码（MLflow “models from code”）
 │   ├── 08_capstone.py
 │   ├── 09a_real_data_ingest.py      扩展：下载并解析真实数据集 → Delta 表
@@ -129,6 +131,7 @@ databricks-aiml-lab/
 | 5 AI Gateway | ★★★ | 1 h | 4 | 推理表存储（很少） |
 | 6 Features | ★★★ | 1 h | 2 | 无 |
 | 7 Agents | ★★★★ | 2–3 h | 4, 6 | **是：Agent 端点、Agent Bricks** |
+| 7c RAG | ★★★ | 1.5–2 h | 7 | 可选的 AI Search 端点（默认不创建） |
 | 8 综合项目 | ★★★★ | 1–2 h | 全部 | 同上 |
 | 9 真实数据（扩展） | ★★★★ | 3–4 h | 0–7 | Volume 存储约 8 GB |
 

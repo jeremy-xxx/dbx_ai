@@ -61,7 +61,7 @@ Databricks 上构建 Agent 的两条路：
 5. 观察回答中的 **引用（citations）**，点击跳到原文。
 6. **Improve quality**：添加几条“问题 + 期望答案”作为标注，Agent Bricks 会据此评估并优化。
 
-> 🔑 这就是 RAG（检索增强生成）：模型本身不知道你们公司的规程，靠“先检索、再回答”。代码版 Agent 里我们用了简化方案（按文档名整篇返回），文档一多就必须上向量检索。
+> 🔑 这就是 RAG（检索增强生成）：模型本身不知道你们公司的规程，靠“先检索、再回答”。代码版 Agent 里我们用了简化方案（按文档名整篇返回），文档一多就必须上向量检索。**阶段 7c 会亲手实现 RAG 的每一步**，见 [07c-rag.md](07c-rag.md)。
 >
 > **Knowledge Assistant 的局限**：它只会读文档，**不会查某辆车的数据、不会调用风险模型**。所以“V01234 该怎么办？”这种问题需要 Part B 的代码 Agent。
 
@@ -217,4 +217,4 @@ mlflow.genai.evaluate(data=eval_data, predict_fn=predict_fn, scorers=[
 | `agents.deploy` 很久没好 | 正常需要 ~15 分钟；看 Serving 页面该端点的 Build logs |
 | `ResponsesAgent` 导入失败 | MLflow 版本 < 3.0，升级 `mlflow[databricks]>=3.1` |
 
-➡️ 下一步：[阶段 8：综合项目](08-capstone.md)
+➡️ 下一步：[阶段 7c：手写 RAG](07c-rag.md)

@@ -67,6 +67,12 @@ FN_POLICY = f"{CATALOG}.{SCHEMA}.get_policy_doc"
 POLICY_VOLUME = f"{CATALOG}.{SCHEMA}.policy_docs"
 POLICY_VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/policy_docs"
 
+# 阶段 7c：RAG（检索增强生成）
+EMBEDDING_MODEL = "system.ai.qwen3-embedding-0-6b"     # 支持中文的向量模型（左侧 AI Gateway → Models 中可见）
+CHUNK_TABLE = f"{CATALOG}.{SCHEMA}.policy_chunks"       # 切块 + 向量
+AI_SEARCH_ENDPOINT = f"{_USER_SLUG}-ai-search"          # 可选：AI Search（原 Vector Search）端点
+AI_SEARCH_INDEX = f"{CATALOG}.{SCHEMA}.policy_chunks_index"
+
 # MLflow 实验
 EXPERIMENT_PATH = f"/Users/{USER}/ev-battery-risk"
 GENAI_EXPERIMENT_PATH = f"/Users/{USER}/ev-battery-genai"
