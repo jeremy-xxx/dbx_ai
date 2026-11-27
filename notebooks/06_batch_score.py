@@ -1,0 +1,140 @@
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # 06 · 批量预测：给新到的一批电芯打分
+# MAGIC
+# MAGIC 对应文档：`docs/06-batch-score.md`
+# MAGIC
+# MAGIC **业务场景**：新一批电芯测完前 100 个循环（约一周），阶段 3 的特征流水线已算好它们的特征。
+# MAGIC 本 notebook 用 `@champion` 模型预测每个电芯的寿命，并给出**质检决策**：
+# MAGIC
+# MAGIC | 决策 | 条件 | 后续动作 |
+# MAGIC |---|---|---|
+# MAGIC | `short_life` | 预测寿命 < 550 个循环 | 剔除或复检 |
+# MAGIC | `borderline` | 预测寿命 ≥ 550，但误差范围下限 < 550 | 延长测试，再观察 |
+# MAGIC | `normal` | 误差范围下限也 ≥ 550 | 正常放行 |
+# MAGIC
+# MAGIC 本 notebook 设计成可以放进 **Jobs** 定时运行：已经用当前模型版本打过分的电芯会跳过，重复运行不会重复写入。
+
+# COMMAND ----------
+
+# MAGIC %pip install -U -q "mlflow[databricks]>=3.1" databricks-feature-engineering
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+# MAGIC %run ./00_config
+
+# COMMAND ----------
+
+dbutils.widgets.text("dataset_role", "new_batch", "要打分的电芯（new_batch / test / train）")
+ROLE = dbutils.widgets.get("dataset_role")
+
+import mlflow
+from databricks.feature_engineering import FeatureEngineeringClient
+from mlflow import MlflowClient
+from pyspark.sql import functions as F
+
+# （界面无变化）用于按别名查询 UC 中的模型版本
+mlflow.set_registry_uri("databricks-uc")
+fe = FeatureEngineeringClient()
+champion = MlflowClient().get_model_version_by_alias(MODEL_NAME, "champion")
+champion_mape = float(champion.tags.get("test_mape", MAX_ACCEPTABLE_MAPE))
+print(f"使用 {MODEL_NAME} v{champion.version}（测试集误差 {champion_mape:.1f}%）为 dataset_role = '{ROLE}' 的电芯打分")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1. 找出待打分的电芯
+# MAGIC 条件：属于指定角色、特征已经算好、还没有被当前模型版本打过分。
+
+# COMMAND ----------
+
+cells = (spark.table(CELL_META_TABLE).where(F.col("dataset_role") == ROLE).select("cell_id")
+         .join(spark.table(FEATURE_TABLE).select("cell_id"), "cell_id"))   # 特征已算好
+
+if spark.catalog.tableExists(PREDICTION_TABLE):
+    already = (spark.table(PREDICTION_TABLE)
+               .where(F.col("model_version") == str(champion.version)).select("cell_id"))
+    cells = cells.join(already, "cell_id", "left_anti")   # 去掉已打过分的
+
+n = cells.count()
+print(f"待打分: {n} 个电芯")
+if n == 0:
+    dbutils.notebook.exit("没有需要打分的电芯")   # 定时运行时没有新电芯就直接结束
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2. 预测：只传电芯 ID，特征自动查
+# MAGIC 模型是用 `fe.log_model` 保存的，它记得要从特征表取哪些特征，所以 `score_batch` 只需要 `cell_id`。
+
+# COMMAND ----------
+
+scored = fe.score_batch(model_uri=f"models:/{MODEL_NAME}@champion", df=cells)   # 输出多一列 prediction = log10(寿命)
+
+band = champion_mape / 100   # 用测试集平均误差作为预测的误差范围
+predictions = (scored
+    .withColumn("predicted_cycle_life", F.round(F.pow(F.lit(10.0), F.col("prediction"))).cast("int"))
+    .withColumn("predicted_low", F.round(F.col("predicted_cycle_life") * (1 - band)).cast("int"))
+    .withColumn("predicted_high", F.round(F.col("predicted_cycle_life") * (1 + band)).cast("int"))
+    .withColumn("qc_decision",
+        F.when(F.col("predicted_cycle_life") < SHORT_LIFE_THRESHOLD, "short_life")
+         .when(F.col("predicted_low") < SHORT_LIFE_THRESHOLD, "borderline")
+         .otherwise("normal"))
+    .withColumn("model_version", F.lit(str(champion.version)))
+    .withColumn("scored_at", F.current_timestamp())
+    .select("cell_id", "predicted_cycle_life", "predicted_low", "predicted_high",
+            "qc_decision", "model_version", "scored_at"))
+
+display(predictions.orderBy("predicted_cycle_life"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3. 写入预测表
+# MAGIC 追加（append）写入：每次运行新增一批，靠 `model_version` 和 `scored_at` 区分。之后监控、Genie 查询都读这张表。
+
+# COMMAND ----------
+
+# 👀 界面：Catalog → main → battery_life_lab → Tables 出现 cell_life_predictions；每次运行追加一批
+predictions.write.mode("append").option("mergeSchema", "true").saveAsTable(PREDICTION_TABLE)
+
+spark.sql(f"COMMENT ON TABLE {PREDICTION_TABLE} IS '电芯循环寿命预测结果：基于前 {EARLY_CYCLES} 个循环，每次批量打分追加一批'")
+for col, comment in {
+    "predicted_cycle_life": "预测的循环寿命（循环次数）",
+    "predicted_low": "预测范围下限 = 预测值 × (1 − 模型测试集平均误差)",
+    "predicted_high": "预测范围上限 = 预测值 × (1 + 模型测试集平均误差)",
+    "qc_decision": f"质检决策：short_life=预测寿命低于{SHORT_LIFE_THRESHOLD}，建议剔除或复检；borderline=范围下限低于{SHORT_LIFE_THRESHOLD}，建议延长测试；normal=正常放行",
+    "model_version": "打分所用的模型版本",
+}.items():
+    spark.sql(f"ALTER TABLE {PREDICTION_TABLE} ALTER COLUMN {col} COMMENT '{comment}'")
+
+display(spark.sql(f"""
+    SELECT qc_decision, count(*) AS cells, round(avg(predicted_cycle_life)) AS avg_predicted_life
+    FROM {PREDICTION_TABLE} WHERE model_version = '{champion.version}'
+    GROUP BY qc_decision ORDER BY avg_predicted_life
+"""))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. 做成定时任务（Jobs）
+# MAGIC 真实场景里，每当一批电芯测完 100 个循环，就自动跑“算特征 → 打分”。在界面上配置：
+# MAGIC
+# MAGIC 1. 左侧 **Jobs & Pipelines → Create → Job**；
+# MAGIC 2. Task 1：Notebook = `03_features`，计算选 Serverless；
+# MAGIC 3. Task 2：Notebook = `06_batch_score`，**Depends on** 选 Task 1，参数 `dataset_role = new_batch`；
+# MAGIC 4. Schedule：例如每天 06:00；Notifications：失败时邮件提醒；
+# MAGIC 5. 点 **Run now** 手动跑一次。因为本 notebook 会跳过已打过分的电芯，第二次运行会直接结束。
+# MAGIC
+# MAGIC 学完记得暂停或删除这个 Job。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ✍️ 练习
+# MAGIC 1. 把 widget `dataset_role` 改成 `test` 再运行，给测试集电芯也打分（阶段 7 会用它和新批次对比）。
+# MAGIC 2. 质检决策用的是“测试集平均误差”作为误差范围。如果业务方要求“宁可多复检、也不能漏掉短寿命电芯”，规则该怎么改？

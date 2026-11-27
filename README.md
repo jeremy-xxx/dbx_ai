@@ -1,149 +1,130 @@
-# Databricks AI/ML 功能区实战：电动车电池健康预测 + 售后运维 Agent
+# 电芯寿命早期预测：基于真实数据的 Databricks 实战项目
 
-本项目用 **一个贯穿始终的电动车（EV）电池业务故事**，带你把 Databricks 左侧 **AI/ML** 功能区的 7 个入口全部走一遍：
+**只测 100 个循环（约一周），预测一个锂电池电芯最终能用多少个循环（原本要测几个月）。**
 
-| 侧边栏入口 | 它是干什么的（一句话） | 本项目对应阶段 |
+本项目用 MIT / Stanford / 丰田研究院公开的真实电池数据，在 Databricks 上搭一条完整、可落地的流水线：从原始实验数据接入，到特征工程、模型实验、上线闸门、按批次自动预测、效果监控，再到让工程师用自然语言查询数据。
+
+---
+
+## 要解决的问题
+
+电池研发和来料检验中，判断一个电芯“能用多久”通常要把它反复充放电，直到容量衰减到 80%。这要几百到两千多个循环，**耗时几个月**。
+
+论文 Severson et al.（*Nature Energy*, 2019）发现：**只看前 100 个循环的放电曲线变化，就能较准确地预测最终寿命**，测试误差约 9%。这能把寿命评估从几个月缩短到一周，用于：
+- **来料检验**：新到一批电芯，快速识别出短寿命的不良品；
+- **快充策略研发**：快速评估新的快充方案会让电池寿命缩短多少。
+
+本项目把这个研究结论做成一个可运行、可监控的系统。
+
+## 数据集
+
+| 项目 | 内容 |
+|---|---|
+| 来源 | Severson, K.A., Attia, P.M., et al. *Data-driven prediction of battery cycle life before capacity degradation.* Nature Energy 4, 383–391 (2019) |
+| 电芯 | 124 个 A123 APR18650M1A，LFP 正极 / 石墨负极，额定 1.1 Ah |
+| 实验 | 30℃ 恒温箱，几十种一步或两步快充策略（通常每种 2 个电芯），4C 放电，循环到容量 80% |
+| 寿命范围 | 约 150–2300 个循环 |
+| 规模 | 3 个批次，共约 7.7 GB 的 MATLAB 文件 |
+| 下载 | https://data.matr.io/1/ |
+| 许可 | **CC BY 4.0**：可自由使用，需署名并引用论文 |
+
+## 流水线
+
+```
+data.matr.io ──① 接入──► Volume + Delta 表 ──② 探索分析
+                              │
+                         ③ 特征工程 ──► 特征表（Features）
+                              │
+                         ④ 建模实验（Experiments）──► ⑤ 上线闸门（Models：@champion）
+                                                              │
+   新一批电芯测完 100 个循环 ──► ⑥ 批量预测 + 质检决策（Jobs 定时运行）──► 预测表
+                                                              │
+                         真实寿命出来后 ──► ⑦ 效果监控：误差、漏检、特征漂移
+                                                              │
+                              工程师提问 ──► ⑧ Genie 数据助手（自然语言 → SQL）
+
+（可选）⑨ 实时 API：在线特征存储 + Serving 端点
+```
+
+**数据集角色**（模拟真实的研发流程）：
+
+| 角色 | 来源 | 在流水线中的用途 |
 |---|---|---|
-| **Playground** | 在网页里直接和各种大模型聊天、对比、挂工具，零代码试 prompt | 阶段 1 |
-| **Experiments** | MLflow 实验追踪：记录每次训练的参数/指标/模型，以及 LLM/Agent 的 Trace | 阶段 2 |
-| **Models** | Unity Catalog 模型注册表：模型版本、别名（champion/challenger）、权限、血缘 | 阶段 3 |
-| **Serving** | 把模型/LLM 部署成 REST 接口（Model Serving Endpoint），也包含官方托管的基础大模型 | 阶段 4 |
-| **AI Gateway**（页面标题显示 **Unity Gateway**） | 模型/端点的统一治理：基础模型入口、限流、用量追踪、请求日志（推理表）、安全护栏、回退 | 阶段 5 |
-| **Features** | 特征工程 / 特征表：把特征集中管理、复用，训练与推理自动查找特征 | 阶段 6 |
-| **Agents** | 构建 AI Agent：Agent Bricks（低代码）+ Agent Framework（代码）+ 评估 + 部署 | 阶段 7 |
+| `train` | batch1 + batch2 的一半 | 训练模型 |
+| `test` | batch1 + batch2 的另一半 | 评估模型，决定能否上线 |
+| `new_batch` | batch3（晚近一年开始的实验） | **模拟上线后新到的一批电芯**：阶段 6 打分，阶段 7 检验模型的真实表现 |
 
-最后在 **阶段 8（综合项目）** 把它们串起来做一条“车队电池风险巡检 → 自动生成进站通知与技师工单”的流水线。
+## 用到的 Databricks 功能
 
-**阶段 9（扩展）** 接入真实公开数据集（MIT/Stanford/TRI 124 个电芯的循环寿命数据，Nature Energy 2019），用前 100 个循环预测电芯寿命，复用同一套平台流程。
+只用这个场景**真正需要**的功能：
 
----
-
-## 业务故事
-
-> 你是一家电动车公司 **电池售后与车队运维部门** 的数据/AI 工程师。每辆车的 BMS（电池管理系统）会定期回传遥测数据：健康度 SOH、电芯压差、最高温度、快充占比、循环次数、告警次数……公司希望：
-> 1. **预测哪些车的电池在未来 90 天内可能发生故障**（传统机器学习：分类模型）；
-> 2. 给售后服务顾问配一个 **AI 助手**：输入车辆 ID，它能查车辆档案、调用风险模型打分、判断是否在质保期内、再按《电池维保规程》给出处置建议和对车主的沟通话术（生成式 AI / Agent）；
-> 3. 所有模型和大模型调用都要 **可追踪、可治理、可控成本**，并且 **安全红线（过温、压差过大）绝不能漏报**。
-
-数据全部由脚本 **合成生成**（5000 辆车），规律符合常识：循环多、快充多、高温地区、NMC 三元电池、压差大 → 衰减更快、故障风险更高。不需要任何外部数据源。
-
-```
-                    ┌──────────── 阶段1 Playground：先用 UI 试 prompt（车主反馈分类）──────┐
-                    │                                                                     │
- 合成 BMS 遥测数据 ──► 阶段2 Experiments 训练多个模型 ──► 阶段3 Models 注册 champion         │
- (Delta 表)                                                 │                             │
-     │                                                      ▼                             │
-     │                                       阶段4 Serving：电池风险模型 REST 端点          │
-     │                                                      │                             │
-     │                                       阶段5 AI Gateway：限流/日志/用量               │
-     ▼                                                      │                             ▼
- 阶段6 Features：电池特征表 + FeatureLookup ─────────► 阶段7 Agents：电池售后运维 Agent
-                                                   (UC 函数工具 + 调用风险端点 + 大模型 + 维保规程)
-                                                            │
-                                         阶段8 综合：车队批量巡检 + ai_query 生成进站通知 + 工单
-```
-
----
+| 功能 | 在项目中的作用 | 阶段 |
+|---|---|---|
+| Unity Catalog、Volume、Delta 表 | 存放原始文件、清洗后的数据、预测结果，统一权限和血缘 | 1 |
+| **Features**（特征表） | 训练和预测共用同一套特征；新电芯的特征按主键合并 | 3 |
+| **Experiments**（MLflow） | 对比 8 组实验，记录交叉验证和测试误差 | 4 |
+| **Models**（UC 模型注册） | 闸门检查后设为 `@champion`，下游只认别名 | 5 |
+| **Jobs** | 按批次自动运行“算特征 → 打分” | 6 |
+| Genie Agents | 工程师用自然语言查询电芯数据 | 8 |
+| Serving + 在线特征存储（可选） | 测试台软件实时调用 | 9 |
 
 ## 目录结构
 
 ```
 databricks-aiml-lab/
-├── README.md                        ← 你正在看的总览
-├── docs/                            ← 教学文档（按阶段阅读）
-│   ├── 00-environment-setup.md      环境准备（必读）
-│   ├── 01-playground.md
-│   ├── 02-experiments.md
-│   ├── 03-models.md
-│   ├── 04-serving.md
-│   ├── 05-ai-gateway.md
-│   ├── 06-features.md
-│   ├── 07-agents.md
-│   ├── 07c-rag.md                   手写 RAG：切块、向量化、检索、生成、评估
-│   ├── 08-capstone.md
-│   ├── 09-real-data.md              扩展：真实电芯循环寿命数据
-│   └── appendix-faq.md              常见报错与排查
-├── notebooks/                       ← 导入 Databricks 运行的 notebook（Databricks 源码格式 .py）
-│   ├── 00_config.py                 全局配置（catalog / schema / 端点名），其它 notebook 用 %run 引用
-│   ├── 00_setup_data.py             生成合成 BMS 遥测数据
-│   ├── 01_playground_to_code.py
-│   ├── 02_experiments_tracking.py
-│   ├── 03_models_registry.py
-│   ├── 04_model_serving.py
-│   ├── 05_ai_gateway.py
-│   ├── 06_feature_engineering.py
-│   ├── 07a_agent_tools.py           创建 UC 函数工具 + 上传维保/质保文档
-│   ├── 07b_agent_build_deploy.py    编写/评估/注册/部署 Agent
-│   ├── 07c_rag.py                   手写 RAG（检索增强生成）及评估
-│   ├── agent.py                     Agent 源码（MLflow “models from code”）
-│   ├── 08_capstone.py
-│   ├── 09a_real_data_ingest.py      扩展：下载并解析真实数据集 → Delta 表
-│   ├── 09b_cycle_life_model.py      扩展：早期特征 + 寿命预测模型
-│   └── 99_cleanup.py                清理资源，避免持续计费
-└── data/
-    └── policies/                    给 Knowledge Assistant / Agent 用的“公司规程”文档
-        ├── battery_maintenance_sop.md   电池维保规程（风险等级、安全红线、沟通要求）
-        ├── battery_warranty_policy.md   电池质保政策
-        └── charging_faq.md              充电与续航常见问题
+├── README.md
+├── docs/                         教学文档（按阶段阅读）
+│   ├── 00-setup.md               环境准备（必读）
+│   ├── 01-ingest.md
+│   ├── 02-eda.md
+│   ├── 03-features.md
+│   ├── 04-train.md
+│   ├── 05-register.md
+│   ├── 06-batch-score.md
+│   ├── 07-monitoring.md
+│   ├── 08-genie.md
+│   ├── 09-serving.md             可选
+│   └── appendix-faq.md           常见问题
+└── notebooks/                    在 Databricks 中运行（Databricks 源码格式 .py）
+    ├── 00_config.py              全局配置，其它 notebook 用 %run 引用
+    ├── 01_ingest.py
+    ├── 02_eda.py
+    ├── 03_features.py
+    ├── 04_train.py
+    ├── 05_register.py
+    ├── 06_batch_score.py
+    ├── 07_monitoring.py
+    ├── 08_genie.py
+    ├── 09_serving.py             可选
+    └── 99_cleanup.py             清理资源
 ```
 
----
+## 学习路线
 
-## 数据字典（`vehicles` 表）
+| 阶段 | 内容 | 预计耗时 | 会持续计费的资源 |
+|---|---|---|---|
+| 0 环境准备 | 导入项目、修改配置 | 20 min | — |
+| 1 数据接入 | 下载 7.7 GB、解析 HDF5、清洗、写表 | 1 h（含下载） | Volume 存储 |
+| 2 探索分析 | 寿命分布、快充影响、ΔQ(V) 的发现 | 45 min | — |
+| 3 特征工程 | 提取 19 个特征、写入特征表 | 30 min | — |
+| 4 建模实验 | 4 组特征 × 2 种模型，交叉验证 | 45 min | — |
+| 5 上线闸门 | 按交叉验证选模型、闸门检查、注册 | 20 min | — |
+| 6 批量预测 | 给新批次打分、质检决策、配置 Job | 30 min | Job（按运行计费） |
+| 7 效果监控 | 误差、漏检、特征漂移、再训练 | 45 min | — |
+| 8 Genie 数据助手 | 宽表视图、业务说明、创建 Genie Agent | 45 min | — |
+| 9 实时 API（可选） | 在线特征存储 + Serving 端点 | 1 h | ⚠️ 在线存储、Serving 端点 |
 
-| 字段 | 含义 | 说明 |
-|---|---|---|
-| `vehicle_id` | 车辆 ID | `V00001` ~ `V05000` |
-| `owner_name` / `owner_type` | 车主 / 类型 | `private`（私人）或 `fleet`（车队） |
-| `vehicle_model` | 车型 | `city_ev` 城市小车 / `suv_ev` SUV / `commercial_van` 物流车 |
-| `battery_chemistry` | 电芯化学体系 | `LFP` 磷酸铁锂 / `NMC` 三元锂 |
-| `climate_zone` | 使用地气候 | `cold` / `temperate` / `hot` |
-| `vehicle_age_months` | 车龄（月） | |
-| `odometer_km` | 总里程 | |
-| `cycle_count` | 等效满充循环次数 | |
-| `fast_charge_ratio` | 快充电量占比 | 0–1 |
-| `avg_depth_of_discharge` | 平均放电深度 | 0–1 |
-| `max_cell_temp_c_30d` | 近 30 天电芯最高温度（℃） | ≥ 60 为安全红线 |
-| `cell_voltage_imbalance_mv` | 电芯最大压差（mV） | ≥ 150 为安全红线 |
-| `bms_alerts_90d` | 近 90 天 BMS 告警次数 | |
-| `soh_pct` | 电池健康度 SOH（%） | 新车 100，质保更换门槛 70 |
-| **`battery_fault_90d`** | **标签：未来 90 天是否发生电池故障** | 约 12% 为 1 |
-
----
+> 💰 学完运行 `99_cleanup.py`；暂停或删除阶段 6 创建的 Job。
 
 ## 如何开始
 
-1. 读 [docs/00-environment-setup.md](docs/00-environment-setup.md)，把整个 `databricks-aiml-lab` 文件夹导入 Databricks（推荐 Git folder）。
-2. 修改 `notebooks/00_config.py` 里的 `CATALOG` / `SCHEMA` / `LLM_MODEL`。
-3. 运行 `notebooks/00_setup_data.py` 生成数据。
-4. 按阶段顺序阅读 `docs/0X-*.md`，每个文档都会告诉你：**先在 UI 里看什么 → 再跑哪个 notebook → 做哪些练习 → 如何自检**。
-5. notebook 代码中以 **`# 👀 界面：`** 开头的注释，说明这行代码运行后**去 Databricks 界面的哪里能看到效果**（新建的表、实验、模型、端点等）；**`# （界面无变化）`** 表示只改了当前会话的设置。边运行边对照界面，是理解每个功能最快的方式。
-
-## 学习路线与预计耗时
-
-| 阶段 | 难度 | 预计耗时 | 前置 | 会产生持续费用的资源 |
-|---|---|---|---|---|
-| 0 环境准备 | ★ | 30 min | — | 无 |
-| 1 Playground | ★ | 45 min | 0 | 无（按 token 计费） |
-| 2 Experiments | ★★ | 1 h | 0 | 无 |
-| 3 Models | ★★ | 45 min | 2 | 无 |
-| 4 Serving | ★★ | 1 h | 3 | **是：Serving 端点**（开启 scale-to-zero） |
-| 5 AI Gateway | ★★★ | 1 h | 4 | 推理表存储（很少） |
-| 6 Features | ★★★ | 1 h | 2 | 无 |
-| 7 Agents | ★★★★ | 2–3 h | 4, 6 | **是：Agent 端点、Agent Bricks** |
-| 7c RAG | ★★★ | 1.5–2 h | 7 | 可选的 AI Search 端点（默认不创建） |
-| 8 综合项目 | ★★★★ | 1–2 h | 全部 | 同上 |
-| 9 真实数据（扩展） | ★★★★ | 3–4 h | 0–7 | Volume 存储约 8 GB |
-
-> 💰 **学完一定要跑 `99_cleanup.py`** 或手动删除 Serving 端点。
-
-## 为什么主线用合成数据？
-主线目标是学平台：合成数据规律明确、有车辆/质保/车主等业务字段，能把 7 个功能区完整串起来，出问题也容易判断是“平台用错了”还是“数据有问题”。
-公开电池数据集大多是实验室电芯级数据（样本几十到一百多个，没有车辆和业务字段），所以作为 **阶段 9 扩展** 与主线并存，而不是替换：见 [docs/09-real-data.md](docs/09-real-data.md)。
-数据集：Severson et al., *Nature Energy* 4, 383–391 (2019)，https://data.matr.io/1/ ，CC BY 4.0。
+1. 读 [docs/00-setup.md](docs/00-setup.md)，用 Git folder 把本仓库导入 Databricks；
+2. 按需修改 `notebooks/00_config.py` 里的 `CATALOG`；
+3. 从 `01_ingest.py` 开始，按顺序运行，每个阶段先读对应文档；
+4. notebook 中 **`# 👀 界面：`** 开头的注释说明这行代码运行后**去界面哪里看效果**；**`# （界面无变化）`** 表示只改了当前会话的设置。
 
 ## 版本说明
 
-- 编写时参考 Databricks 2025–2026 年的产品形态：MLflow 3、Unity Catalog 模型注册、Mosaic AI Agent Framework、Agent Bricks、AI Gateway。
-- Databricks UI 更新很快，按钮名称可能与文档略有不同；**以功能含义为准**，遇到对不上的情况看 [appendix-faq.md](docs/appendix-faq.md)。
-- **2026-09 起基础模型迁移到 Unity Gateway**：Unity Gateway 是 Databricks 新的统一 AI 治理平台，左侧菜单入口显示为 **AI Gateway**。模型注册在 `system.ai` 下（如 `system.ai.qwen3-next-80b-a3b-instruct`），不再出现在 Serving 页面。本项目统一通过 Unity Gateway 调用大模型，详见 [docs/00](docs/00-environment-setup.md)。可用模型因区域而异，请在左侧 **AI/ML → AI Gateway → Models** 确认。
+- 按 2026 年 11 月的 Databricks 产品与官方文档编写：MLflow 3、Unity Catalog 模型注册、Feature Engineering、Genie Agents（原 Genie Spaces）。
+- Databricks 更新很快，按钮名称可能和文档略有不同，以功能含义为准；遇到对不上的情况看 [appendix-faq.md](docs/appendix-faq.md)。
+- 使用本数据集的任何产出（博客、作品集、论文）请注明出处：Severson et al., *Nature Energy* 4, 383–391 (2019)，数据来自 https://data.matr.io/1/（CC BY 4.0）。

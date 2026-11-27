@@ -2,14 +2,18 @@
 # MAGIC %md
 # MAGIC # 99 · 清理资源
 # MAGIC
-# MAGIC ⚠️ 删除操作不可恢复。默认只删除 **会持续计费** 的 Serving 端点和 AI Search 端点（阶段 7c 可选创建）；
-# MAGIC 如需删除整个 schema（表、模型、函数、Volume），把 `DROP_SCHEMA` 改为 True。
+# MAGIC ⚠️ 删除操作不可恢复。默认只删除**会持续计费**的资源：阶段 9 的 Serving 端点和在线特征存储。
 # MAGIC
-# MAGIC Agent Bricks 创建的 Knowledge Assistant、定时 Job 请在 UI 中手动删除。
+# MAGIC | 开关 | 默认 | 作用 |
+# MAGIC |---|---|---|
+# MAGIC | `DELETE_RAW_FILES` | False | 删除 Volume 里约 7.7 GB 的原始 .mat 文件（解析结果已在 Delta 表中） |
+# MAGIC | `DROP_SCHEMA` | False | 删除整个 `battery_life_lab`：所有表、视图、模型、Volume |
+# MAGIC
+# MAGIC 需要在界面里手动处理的：阶段 6 创建的 **Job**（暂停或删除）、阶段 8 创建的 **Genie Agent**。
 
 # COMMAND ----------
 
-# MAGIC %pip install -U -q databricks-sdk databricks-ai-search
+# MAGIC %pip install -U -q databricks-sdk databricks-feature-engineering
 
 # COMMAND ----------
 
@@ -21,50 +25,38 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+DELETE_RAW_FILES = False
 DROP_SCHEMA = False
 
+from databricks.feature_engineering import FeatureEngineeringClient
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 
 w = WorkspaceClient()
-targets = [
-    e.name for e in w.serving_endpoints.list()
-    if e.name == RISK_ENDPOINT
-    or e.name == RISK_ENDPOINT.replace("battery-risk", "ext-gpt")
-    or (e.name.startswith("agents_") and f"{SCHEMA}-battery_service_agent" in e.name)
-]
-print("将删除以下端点:", targets)
+fe = FeatureEngineeringClient()
 
-# COMMAND ----------
+# 阶段 9：Serving 端点
+try:
+    w.serving_endpoints.delete(SERVING_ENDPOINT)
+    print("🗑️ 已删除 Serving 端点", SERVING_ENDPOINT)
+except NotFound:
+    print("没有 Serving 端点，跳过")
 
-for name in targets:
-    w.serving_endpoints.delete(name)
-    print("🗑️ 已删除端点", name)
-
-# COMMAND ----------
-
-# 阶段 7c（可选）：AI Search 索引和端点。端点是常驻计算资源，会持续计费
-from databricks.ai_search.client import AISearchClient
-
-search_client = AISearchClient(disable_notice=True)
-if search_client.endpoint_exists(AI_SEARCH_ENDPOINT):
-    if search_client.index_exists(endpoint_name=AI_SEARCH_ENDPOINT, index_name=AI_SEARCH_INDEX):
-        search_client.delete_index(endpoint_name=AI_SEARCH_ENDPOINT, index_name=AI_SEARCH_INDEX)
-        print("🗑️ 已删除 AI Search 索引", AI_SEARCH_INDEX)
-    search_client.delete_endpoint(AI_SEARCH_ENDPOINT)
-    print("🗑️ 已删除 AI Search 端点", AI_SEARCH_ENDPOINT)
+# 阶段 9：在线特征存储（常驻计算资源，会持续计费）
+if fe.get_online_store(name=ONLINE_STORE_NAME) is not None:
+    fe.delete_online_store(name=ONLINE_STORE_NAME)
+    print("🗑️ 已删除在线特征存储", ONLINE_STORE_NAME)
 else:
-    print("没有创建过 AI Search 端点，跳过")
+    print("没有在线特征存储，跳过")
 
 # COMMAND ----------
 
-# 阶段 9 的原始 .mat 文件约 8 GB；解析结果已在 Delta 表中，原始文件可单独删除
-DELETE_RAW_BATTERY_FILES = False
-if DELETE_RAW_BATTERY_FILES and not DROP_SCHEMA:
-    import os
-    if os.path.isdir(RAW_VOLUME_PATH):
-        for fname in os.listdir(RAW_VOLUME_PATH):
-            os.remove(f"{RAW_VOLUME_PATH}/{fname}")
-            print("🗑️ 已删除", fname)
+import os
+
+if DELETE_RAW_FILES and not DROP_SCHEMA and os.path.isdir(RAW_VOLUME_PATH):
+    for fname in os.listdir(RAW_VOLUME_PATH):
+        os.remove(f"{RAW_VOLUME_PATH}/{fname}")
+        print("🗑️ 已删除", fname)
 
 if DROP_SCHEMA:
     spark.sql(f"DROP SCHEMA IF EXISTS {CATALOG}.{SCHEMA} CASCADE")
